@@ -313,40 +313,7 @@ class DependentTodosApp(App):
         ("shift+tab", "previous_tab", "Previous tab"),
     ]
 
-    CSS = """
-    Screen {
-        layout: horizontal;
-    }
-
-    #sidebar {
-        width: 40;
-        border-right: solid $primary;
-    }
-
-    #main-content {
-        layout: vertical;
-        width: 1fr;
-    }
-
-    #task-table {
-        height: 1fr;
-    }
-
-    #task-details {
-        height: 1fr;
-        border-top: solid $primary;
-    }
-
-    #footer {
-        height: 1;
-        border-top: solid $primary;
-        padding: 0 1;
-    }
-
-    Button {
-        margin: 1;
-    }
-    """
+    CSS_PATH = "styles.css"
 
     def __init__(self):
         super().__init__()
