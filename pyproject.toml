@@ -11,7 +11,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "click>=8.0.0",
     "rich>=13.0.0",
-    "textual>=0.50.0",
+    "textual>=0.80.0",
     "tomli-w>=1.0.0",
     "simple-term-menu>=1.6.0",
 ]
@@ -26,7 +26,11 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "pytest-textual-snapshot>=0.4.0",
     "ruff>=0.14.11",
+    "textual-dev>=1.8.0",
 ]
 
 [tool.ruff]

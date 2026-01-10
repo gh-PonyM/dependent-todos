@@ -7,7 +7,8 @@
 3. ✅ Implement Phase 1 (core functionality) (COMPLETED)
 4. ✅ Implement Phase 2 (dependencies) (COMPLETED)
 5. Implement Phase 3 (enhanced UX)
-6. Iterate based on usage and feedback
+6. Set up comprehensive testing framework (including textual TUI tests)
+7. Iterate based on usage and feedback
 
 ## Bug Tracking
 

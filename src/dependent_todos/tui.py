@@ -12,10 +12,10 @@ from textual.widgets import (
     Tree,
 )
 
-from .config import get_config_path
-from .dependencies import get_ready_tasks, topological_sort
-from .models import Task
-from .storage import load_tasks_from_file
+from dependent_todos.config import get_config_path
+from dependent_todos.dependencies import get_ready_tasks, topological_sort
+from dependent_todos.models import Task
+from dependent_todos.storage import load_tasks_from_file
 
 
 class TaskTable(DataTable):
