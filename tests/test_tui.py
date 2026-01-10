@@ -3,7 +3,7 @@
 import pytest
 from typing import cast
 
-from dependent_todos.tui import DependentTodosApp, NonFocusableTabs
+from dependent_todos.tui import DependentTodosApp, FocusableTabs
 
 
 @pytest.mark.asyncio
@@ -49,26 +49,35 @@ async def test_ready_tasks_key():
 
 
 @pytest.mark.asyncio
-async def test_tab_navigation():
-    """Test that pressing Tab does not change focus (no focusable widgets)."""
+async def test_navigation_and_focus():
+    """Test tab switching and focus navigation with up/down keys."""
     app = DependentTodosApp()
+    # Add some tasks for table navigation
+    from dependent_todos.models import Task
+
+    app.tasks = {
+        "task1": Task(
+            id="task1",
+            message="Task 1",
+            dependencies=[],
+            status="pending",
+            cancelled=False,
+            started=None,
+            completed=None,
+        ),
+        "task2": Task(
+            id="task2",
+            message="Task 2",
+            dependencies=[],
+            status="pending",
+            cancelled=False,
+            started=None,
+            completed=None,
+        ),
+    }
     async with app.run_test() as pilot:
-        # Initially, no widget should be focused
-        assert pilot.app.focused is None
-
-        # Press Tab
-        await pilot.press("tab")
-
-        # Focus should remain None since no widgets are focusable
-        assert pilot.app.focused is None
-
-
-@pytest.mark.asyncio
-async def test_tab_switching():
-    """Test that Tab switches between filter tabs."""
-    app = DependentTodosApp()
-    async with app.run_test() as pilot:
-        tabs = cast(NonFocusableTabs, pilot.app.query_one("#filter-tabs"))
+        tabs = cast(FocusableTabs, pilot.app.query_one("#filter-tabs"))
+        table = pilot.app.query_one("#task-table")
         app_instance = cast(DependentTodosApp, pilot.app)
 
         # Initially on "All" tab
@@ -99,6 +108,21 @@ async def test_tab_switching():
         await pilot.press("shift+tab")
         assert tabs.active_tab.label.plain == "Pending"
         assert app_instance.current_filter == "pending"
+
+        # Now test focus switching
+        # Initially, tabs are focused
+        assert pilot.app.focused == tabs
+
+        # Press down to focus table
+        await pilot.press("down")
+        assert pilot.app.focused == table
+
+        # When table is focused, up/down should navigate (focus stays on table)
+        await pilot.press("down")
+        assert pilot.app.focused == table
+
+        await pilot.press("up")
+        assert pilot.app.focused == table
 
 
 @pytest.mark.asyncio

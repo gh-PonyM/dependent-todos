@@ -22,12 +22,12 @@ from dependent_todos.models import STATE_COLORS, Task
 from dependent_todos.storage import load_tasks_from_file
 
 
-class NonFocusableTabs(Tabs):
-    """Tabs widget that cannot be focused."""
+class FocusableTabs(Tabs):
+    """Tabs widget that can be focused."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.can_focus = False
+        self.can_focus = True
 
 
 class TaskTable(DataTable):
@@ -37,7 +37,7 @@ class TaskTable(DataTable):
         super().__init__(**kwargs)
         self.tasks = tasks
         self.filter_state = filter_state
-        self.can_focus = False
+        self.can_focus = True
         self.add_columns("ID", "State", "Message")
         self._populate_table()
 
@@ -364,9 +364,7 @@ class DependentTodosApp(App):
                 pass  # Buttons replaced with key bindings
 
             with Container(id="main-content"):
-                yield NonFocusableTabs(
-                    "All", "Ready", "Done", "Pending", id="filter-tabs"
-                )
+                yield FocusableTabs("All", "Ready", "Done", "Pending", id="filter-tabs")
                 yield TaskTable(
                     self.tasks, filter_state=self.current_filter, id="task-table"
                 )
@@ -443,29 +441,54 @@ class DependentTodosApp(App):
 
     def action_next_tab(self):
         """Switch to the next filter tab."""
-        tabs = self.query_one("#filter-tabs", NonFocusableTabs)
+        tabs = self.query_one("#filter-tabs", FocusableTabs)
         current_tab = tabs.active_tab
-        current_index = tabs._tabs.index(current_tab)
-        next_index = (current_index + 1) % len(tabs._tabs)
-        tabs.active = tabs._tabs[next_index].id
-        self._update_filter_from_tab()
+        if current_tab is not None:
+            current_index = tabs._tabs.index(current_tab)
+            next_index = (current_index + 1) % len(tabs._tabs)
+            tabs.active = tabs._tabs[next_index].id
+            self._update_filter_from_tab()
 
     def action_previous_tab(self):
         """Switch to the previous filter tab."""
-        tabs = self.query_one("#filter-tabs", NonFocusableTabs)
+        tabs = self.query_one("#filter-tabs", FocusableTabs)
         current_tab = tabs.active_tab
-        current_index = tabs._tabs.index(current_tab)
-        prev_index = (current_index - 1) % len(tabs._tabs)
-        tabs.active = tabs._tabs[prev_index].id
-        self._update_filter_from_tab()
+        if current_tab is not None:
+            current_index = tabs._tabs.index(current_tab)
+            prev_index = (current_index - 1) % len(tabs._tabs)
+            tabs.active = tabs._tabs[prev_index].id
+            self._update_filter_from_tab()
+
+    def action_focus_next(self):
+        """Switch focus to the next widget."""
+        focusables = [self.query_one("#filter-tabs"), self.query_one("#task-table")]
+        current = self.focused
+        if current in focusables:
+            index = focusables.index(current)
+            next_index = (index + 1) % len(focusables)
+            self.set_focus(focusables[next_index])
+        else:
+            self.set_focus(focusables[0])
+
+    def action_focus_previous(self):
+        """Switch focus to the previous widget."""
+        focusables = [self.query_one("#filter-tabs"), self.query_one("#task-table")]
+        current = self.focused
+        if current in focusables:
+            index = focusables.index(current)
+            prev_index = (index - 1) % len(focusables)
+            self.set_focus(focusables[prev_index])
+        else:
+            self.set_focus(focusables[-1])
 
     def _update_filter_from_tab(self):
         """Update the current filter and table based on active tab."""
-        tabs = self.query_one("#filter-tabs", NonFocusableTabs)
-        self.current_filter = str(tabs.active_tab.label.plain).lower()
-        table = self.query_one("#task-table", TaskTable)
-        table.filter_state = self.current_filter
-        table._populate_table()
+        tabs = self.query_one("#filter-tabs", FocusableTabs)
+        if tabs.active_tab is not None:
+            self.current_filter = str(tabs.active_tab.label.plain).lower()
+            table = self.query_one("#task-table", TaskTable)
+            table.filter_state = self.current_filter
+            table._populate_table()
 
     def on_key(self, event):
         """Handle key presses."""
@@ -475,6 +498,16 @@ class DependentTodosApp(App):
         elif event.key == "shift+tab":
             event.prevent_default()
             self.action_previous_tab()
+        elif event.key == "up":
+            table = self.query_one("#task-table")
+            if not table.has_focus:
+                self.action_focus_previous()
+                event.prevent_default()
+        elif event.key == "down":
+            table = self.query_one("#task-table")
+            if not table.has_focus:
+                self.action_focus_next()
+                event.prevent_default()
 
 
 def run_tui():
