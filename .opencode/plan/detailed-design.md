@@ -18,18 +18,41 @@ A command-line task management tool with dependency tracking, implemented as a s
 ### Single File Structure
 - **File**: `todos.py`
 - **Execution**: `python todos.py <command>` or `./todos.py <command>`
-- **Storage**: `.todos.toml` in current directory
+- **Storage**: `.todos.toml` location configurable via `TODOS_CONFIG` environment variable or `--config` flag
+  - Default: `~/.config/todos/.todos.toml` (XDG Base Directory Specification)
+  - Can be overridden per-directory for project-specific task files
+  - Click's `get_app_dir()` utility used for cross-platform XDG compliance
 
 ### Data Model
+
+#### Stored in TOML (Persistent)
 ```python
 Task:
-  - id: str (unique identifier)
+  - id: str (unique identifier, auto-generated slug from message)
   - message: str (task description)
-  - status: str (pending/done/blocked)
+  - status: str (pending/done - only these two values stored)
   - dependencies: list[str] (list of task IDs)
-  - created: datetime
-  - completed: datetime | None
+  - created: datetime (ISO 8601 format)
+  - started: datetime | None (when work began on task)
+  - completed: datetime | None (when task was marked done)
+  - cancelled: bool (whether task is cancelled)
 ```
+
+#### Computed State (Derived at Runtime)
+```python
+state: str (computed from stored fields and dependencies)
+  - "pending": status == "pending" and started is None
+  - "in-progress": status == "pending" and started is not None and completed is None
+  - "done": status == "done" and completed is not None
+  - "blocked": status == "pending" and any dependency is not done
+  - "cancelled": cancelled == True
+```
+
+#### ID Generation
+- Auto-generated from task message using slugify function
+- URL-compatible format (lowercase, hyphens, alphanumeric only)
+- Configurable max length (default: 50 characters)
+- Validated with Pydantic
 
 ---
 
@@ -40,16 +63,17 @@ Task:
 #### `todos.py add`
 Interactive task creation:
 1. Prompt for task message
-2. Prompt for task ID (suggest auto-generated if empty)
-3. Show existing task IDs with fuzzy search
-4. Allow selecting multiple dependencies
-5. Save to TOML file
+2. Auto-generate slug ID from message (user can override if desired)
+3. Show existing task IDs with fuzzy search for dependency selection
+4. Allow selecting multiple dependencies interactively
+5. Validate for circular dependencies before saving
+6. Save to TOML file
 
 **Example flow:**
 ```
 $ python todos.py add
 Task message: Implement user authentication
-Task ID (leave empty for auto): auth-001
+Generated ID: implement-user-authentication (press Enter to accept, or type custom ID)
 Dependencies (fuzzy search, press Enter when done):
   > [Type to search existing tasks]
   - setup-database (selected)
@@ -58,27 +82,31 @@ Task added successfully!
 ```
 
 #### `todos.py list`
-Display all tasks with basic info:
+Display all tasks with basic info, showing computed state:
 ```
-ID            Status    Message                      Dependencies
-auth-001      pending   Implement user auth          setup-database, api-framework
-setup-db      done      Setup database               -
-api-fw        done      Setup API framework          -
+ID                              State         Message                      Dependencies
+implement-user-authentication   pending       Implement user auth          setup-database, api-framework
+setup-database                  done          Setup database               -
+api-framework                   done          Setup API framework          -
 ```
 
+Note: "State" column shows computed state (pending/in-progress/done/blocked/cancelled), not stored status.
+
 #### `todos.py tree [ID]`
-Show dependency tree visualization:
+Show dependency tree visualization with computed state:
 - If ID provided: show tree for that specific task
 - If no ID: show all tasks as forest
 
 **Example:**
 ```
-$ python todos.py tree auth-001
-auth-001: Implement user authentication [pending]
+$ python todos.py tree implement-user-authentication
+implement-user-authentication: Implement user authentication [pending]
 ├── setup-database [done]
 └── api-framework [done]
-    └── install-deps [done]
+     └── install-deps [done]
 ```
+
+State shown in brackets is the computed state at runtime.
 
 #### `todos.py ready`
 Show tasks that are ready to work on (all dependencies completed):
@@ -91,9 +119,10 @@ Ready to work on:
 #### `todos.py done <ID>`
 Mark task as complete:
 - Validates task exists
-- Sets status to 'done'
-- Records completion timestamp
-- Shows which tasks are now unblocked
+- Checks if all dependencies are done
+- If dependencies not done: shows warning and asks for confirmation
+- Sets status to 'done' and records completion timestamp
+- Shows which tasks are now unblocked (no longer blocked)
 
 #### `todos.py remove <ID>`
 Remove a task:
@@ -104,10 +133,14 @@ Remove a task:
 #### `todos.py show <ID>`
 Show detailed task information:
 ```
-ID: auth-001
+ID: implement-user-authentication
 Message: Implement user authentication
-Status: pending
+State: pending (computed)
+Status: pending (stored)
 Created: 2026-01-10 14:30:00
+Started: -
+Completed: -
+Cancelled: false
 Dependencies: setup-database, api-framework
 Blocks: user-profile, admin-panel
 ```
@@ -166,22 +199,36 @@ Execution order:
 ### TOML Storage Format
 
 ```toml
-[tasks.auth-001]
+[tasks.implement-user-authentication]
 message = "Implement user authentication"
 status = "pending"
 dependencies = ["setup-database", "api-framework"]
 created = "2026-01-10T14:30:00"
 started = ""
 completed = ""
+cancelled = false
 
 [tasks.setup-database]
 message = "Setup database"
 status = "done"
 dependencies = []
-started = ""
 created = "2026-01-10T10:00:00"
+started = "2026-01-10T10:30:00"
 completed = "2026-01-10T12:00:00"
+cancelled = false
 ```
+
+**Notes:**
+- `status`: Only stores "pending" or "done" (minimal state)
+- `started`: ISO 8601 timestamp when work began (empty string if not started)
+- `completed`: ISO 8601 timestamp when marked done (empty string if not done)
+- `cancelled`: Boolean flag for cancelled tasks
+- Computed `state` is derived from these fields at runtime:
+  - pending: status="pending" AND started="" AND cancelled=false
+  - in-progress: status="pending" AND started!="" AND completed="" AND cancelled=false
+  - done: status="done" AND completed!="" AND cancelled=false
+  - blocked: status="pending" AND any dependency not done AND cancelled=false
+  - cancelled: cancelled=true
 
 ### Dependency Validation
 
@@ -226,46 +273,111 @@ completed = "2026-01-10T12:00:00"
 
 ---
 
-## Open Questions
+## Design Decisions (Resolved from Open Questions)
 
-1. **Storage location**: Should `.todos.toml` be in current directory, or support project-specific locations?
-    - should be configurable via env variable. Default to xdg-home. the click tool has the application dir, we can use this
+### 1. Storage Location
+**Decision**: Configurable via environment variable with XDG Base Directory default
+- Environment variable: `TODOS_CONFIG` (path to specific `.todos.toml` file)
+- CLI flag: `--config` to override for single command
+- Default: `~/.config/todos/.todos.toml` (using Click's `get_app_dir()`)
+- Use case: Project-specific files can be stored in repo root, global tasks in home directory
+- Implementation: User sets `export TODOS_CONFIG=/path/to/project/.todos.toml` or uses `--config` flag
 
-2. **Task ID format**: Auto-generate IDs (UUID, incremental) or always require manual entry?
-   - auto-generate, but I want to use a slug value and have a slugify_function, that would be url compatible for example
-   - derive the slug from the text, define slug max length
-   - slug can be well validated with pydantic
+### 2. Task ID Format
+**Decision**: Auto-generated slug from task message
+- Slugify function converts message to URL-compatible format
+- Format: lowercase, hyphens for spaces, alphanumeric + hyphens only
+- Max length: 50 characters (configurable)
+- User can override during task creation
+- Validation: Pydantic model ensures slug format compliance
+- Example: "Implement user authentication" → "implement-user-authentication"
 
-3. **Status values**: Just `pending`/`done`, or add `in-progress`, `blocked`, `cancelled`?
-   - blocked as an attribute makes sense, but it is dynamic based on other tasks, so we do not want to store it inside the config
-   - I added an attribute `started` to tell when we started the task
-   - `cancelled` is also a good state
-   - Keep the toml config status separated from the attribute `state`
-     - In progress is when the task has a started value but not `completed`
-     - blocked is dynamic, etc.
-     - only cancelled (should be a boolean) in the task config to write to the toml, but not the other states that are deferred attributes
+### 3. Status vs State Model
+**Decision**: Separate stored status from computed state
+- **Stored in TOML** (minimal):
+  - `status`: "pending" or "done" only
+  - `started`: timestamp when work began (empty if not started)
+  - `completed`: timestamp when marked done (empty if not done)
+  - `cancelled`: boolean flag
+- **Computed at runtime** (derived state):
+  - "pending": status="pending" AND not started AND not cancelled
+  - "in-progress": status="pending" AND started AND not completed AND not cancelled
+  - "done": status="done" AND completed AND not cancelled
+  - "blocked": status="pending" AND any dependency not done AND not cancelled
+  - "cancelled": cancelled=true
+- Rationale: Minimal storage, rich runtime state, no redundancy
 
-4. **Dependency strictness**: Should completing a task require all dependencies to be done first?
-   - Show some sort of warning and ask for confirmation, but should be possible 
+### 4. Dependency Strictness
+**Decision**: Warn but allow completing tasks with incomplete dependencies
+- When marking task done: check if all dependencies are done
+- If not: show warning listing incomplete dependencies
+- Ask for confirmation: "Continue anyway? (y/n)"
+- Allow user to proceed if intentional
+- Rationale: Flexibility for real-world scenarios where order might change
 
-5. **Multi-project support**: Single global file or per-directory files?
-   - the env / --cfg flag specifies which toml file should be used
-   - The tool is meant to work with like such a config file inside a repo. Otherwise the user should set his global env var to his global task config
+### 5. Multi-Project Support
+**Decision**: Per-file configuration with environment variable override
+- Default: `~/.config/todos/.todos.toml` (global tasks)
+- Per-project: Set `TODOS_CONFIG` to project-specific path
+- Per-command: Use `--config` flag to override
+- Typical workflow:
+  - Global tasks: `export TODOS_CONFIG=~/.config/todos/.todos.toml`
+  - Project tasks: `export TODOS_CONFIG=./.todos.toml` (in repo root)
+- Rationale: Flexible, supports both global and project-scoped workflows
 
-6. **Export/Import**: Should we support exporting to other formats (JSON, Markdown)?
-    - Yes, I want a markdown report exporter
+### 6. Export/Import
+**Decision**: Implement markdown report exporter in Phase 3
+- Command: `todos.py export [--format markdown|json] [--output file.md]`
+- Markdown format: Human-readable report with task tree and status
+- JSON format: Machine-readable for integration with other tools
+- Default: Print to stdout if no output file specified
+- Future: Import from markdown/JSON in later phases
 
-7. **Task editing**: Should we add an `edit` command to modify existing tasks?
-    - not for the cli, can be done in the config itself
-    - but for the tui final version
+### 7. Task Editing
+**Decision**: Manual TOML editing for CLI, TUI support in Phase 3
+- CLI: Users edit `.todos.toml` directly with text editor
+- Rationale: Keeps CLI simple, TOML is human-readable
+- TUI (Phase 3): Full `edit` command with interactive interface
+- Future: `todos.py edit <ID>` command in TUI version
 
-8. **Task priorities**: Add priority levels (high/medium/low)?
+### 8. Task Priorities
+**Decision**: Deferred to Phase 4 (Polish)
+- Not included in initial implementation
+- Can be added as optional field: `priority: "high" | "medium" | "low"`
+- Would affect `ready` command sorting
+- Consider for future enhancement based on user feedback
 
 ---
 
+## Implementation Notes
+
+### Configuration Management
+- Use Click's `get_app_dir()` for XDG compliance
+- Support `TODOS_CONFIG` environment variable
+- Support `--config` CLI flag (highest priority)
+- Fallback chain: CLI flag → env var → default XDG path
+
+### Slug Generation
+- Implement `slugify()` function using regex
+- Handle Unicode characters appropriately
+- Ensure uniqueness (warn if slug already exists)
+- Allow manual override during task creation
+
+### State Computation
+- Implement `compute_state()` method on Task model
+- Called when displaying tasks (list, tree, show, ready)
+- Never stored in TOML (always derived)
+- Efficient: O(1) for most states, O(n) for blocked check
+
+### Validation
+- Use Pydantic v2 for all data models
+- Validate circular dependencies before saving
+- Warn about orphan dependencies (deps that don't exist)
+- Validate slug format and uniqueness
+
 ## Next Steps
 
-1. Review this plan and answer open questions
-2. Separate out this plan into multiple markdown file with file naming pattern `01_task1.md`, `02_basic_toml_read_write.md`
+1. ✅ Review plan and answer open questions (COMPLETED)
+2. Separate this plan into multiple markdown files with pattern `01_*.md`, `02_*.md`, etc.
 3. Implement Phase 1 (core functionality)
 4. Iterate based on usage and feedback
