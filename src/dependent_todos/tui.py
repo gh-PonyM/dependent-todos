@@ -468,7 +468,10 @@ class DependentTodosApp(App):
 
         with Horizontal():
             with Container(id="sidebar", classes="hidden"):
-                yield DependencyTree(self.tasks, root_task_id=self.current_task_id, id="dep-tree")
+                tree = DependencyTree(self.tasks, root_task_id=self.current_task_id)
+                tree.id = "dep-tree"
+                tree.can_focus = False
+                yield tree
             with Container(id="main-content"):
                 yield FocusableTabs("All", "Todo", "Done", "Pending", id="filter-tabs")
                 yield TaskTable(
