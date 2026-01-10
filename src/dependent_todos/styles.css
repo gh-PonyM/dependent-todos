@@ -4,7 +4,10 @@ Screen {
 
 #sidebar {
     width: 40;
+    height: 100%;
     border-right: solid $primary;
+    background: $panel;
+    padding: 1;
 }
 
 #main-content {
@@ -40,7 +43,6 @@ BaseModalScreen {
   align: center middle;
 
   Grid {
-    height: 30;
     grid-size: 4 12;
     grid-gutter: 1 1;
     padding: 1 2;
