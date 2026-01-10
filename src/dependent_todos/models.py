@@ -20,8 +20,8 @@ class Task(BaseModel):
     created: datetime = Field(
         default_factory=datetime.now, description="When task was created"
     )
-    started: Optional[datetime] = Field(None, description="When work began on task")
-    completed: Optional[datetime] = Field(None, description="When task was marked done")
+    started: datetime | None = Field(None, description="When work began on task")
+    completed: datetime | None = Field(None, description="When task was marked done")
     cancelled: bool = Field(False, description="Whether task is cancelled")
 
     @field_validator("status")

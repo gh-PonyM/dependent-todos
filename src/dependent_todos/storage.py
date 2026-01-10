@@ -9,7 +9,7 @@ import tomli_w
 from .models import Task
 
 
-def load_tasks_from_file(file_path: Path) -> Dict[str, Task]:
+def load_tasks_from_file(file_path: Path) -> dict[str, Task]:
     """Load tasks from a TOML file.
 
     Args:
@@ -45,7 +45,7 @@ def load_tasks_from_file(file_path: Path) -> Dict[str, Task]:
     return tasks
 
 
-def save_tasks_to_file(tasks: Dict[str, Task], file_path: Path) -> None:
+def save_tasks_to_file(tasks: dict[str, Task], file_path: Path) -> None:
     """Save tasks to a TOML file.
 
     Args:

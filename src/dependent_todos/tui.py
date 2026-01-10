@@ -23,7 +23,7 @@ from .storage import load_tasks_from_file
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
-    def __init__(self, tasks: Dict[str, Task]):
+    def __init__(self, tasks: dict[str, Task]):
         super().__init__()
         self.tasks = tasks
         self.add_columns("ID", "State", "Message")
@@ -57,7 +57,7 @@ class TaskTable(DataTable):
 
             self.add_row(task_id, state_text.plain, message)
 
-    def refresh_data(self, tasks: Dict[str, Task]):
+    def refresh_data(self, tasks: dict[str, Task]):
         """Refresh the table with new task data."""
         self.tasks = tasks
         self._populate_table()
@@ -66,7 +66,7 @@ class TaskTable(DataTable):
 class DependencyTree(Tree):
     """Tree widget for displaying task dependencies."""
 
-    def __init__(self, tasks: Dict[str, Task]):
+    def __init__(self, tasks: dict[str, Task]):
         super().__init__("Tasks")
         self.tasks = tasks
         self._build_tree()
@@ -114,7 +114,7 @@ class TaskDetails(Static):
         self.task_id = task_id
         self.tasks = {}
 
-    def update_task(self, task_id: str, tasks: Dict[str, Task]):
+    def update_task(self, task_id: str, tasks: dict[str, Task]):
         """Update the displayed task."""
         self.task_id = task_id
         self.tasks = tasks

@@ -8,8 +8,8 @@ from .models import Task
 
 
 def detect_circular_dependencies(
-    task_id: str, dependencies: List[str], all_tasks: Dict[str, Task]
-) -> List[str]:
+    task_id: str, dependencies: list[str], all_tasks: dict[str, Task]
+) -> list[str]:
     """Detect circular dependencies in the dependency graph.
 
     Args:
@@ -32,7 +32,7 @@ def detect_circular_dependencies(
     return []
 
 
-def _has_path(start: str, target: str, graph: Dict[str, List[str]]) -> bool:
+def _has_path(start: str, target: str, graph: dict[str, list[str]]) -> bool:
     """Check if there's a path from start to target in the graph."""
     visited = set()
     stack = [start]
@@ -55,7 +55,7 @@ def _has_path(start: str, target: str, graph: Dict[str, List[str]]) -> bool:
     return False
 
 
-def topological_sort(tasks: Dict[str, Task]) -> List[str]:
+def topological_sort(tasks: dict[str, Task]) -> list[str]:
     """Perform topological sort on tasks based on dependencies.
 
     Only includes tasks that are not done (pending, in-progress, blocked, cancelled).
@@ -108,7 +108,7 @@ def topological_sort(tasks: Dict[str, Task]) -> List[str]:
     return result
 
 
-def get_ready_tasks(tasks: Dict[str, Task]) -> List[str]:
+def get_ready_tasks(tasks: dict[str, Task]) -> list[str]:
     """Get tasks that are ready to work on (all dependencies completed).
 
     Args:
@@ -129,7 +129,7 @@ def get_ready_tasks(tasks: Dict[str, Task]) -> List[str]:
 
 
 def get_dependency_tree(
-    task_id: str, tasks: Dict[str, Task], prefix: str = "", is_last: bool = True
+    task_id: str, tasks: dict[str, Task], prefix: str = "", is_last: bool = True
 ) -> str:
     """Generate a tree representation of task dependencies.
 
@@ -168,8 +168,8 @@ def get_dependency_tree(
 
 
 def select_dependencies_interactive(
-    all_tasks: Dict[str, Task], exclude_task_id: str | None = None
-) -> List[str]:
+    all_tasks: dict[str, Task], exclude_task_id: str | None = None
+) -> list[str]:
     """Interactively select dependencies using fuzzy search.
 
     Args:

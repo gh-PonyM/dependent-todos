@@ -17,7 +17,7 @@ from .utils import generate_unique_id
     help="Path to todos configuration file",
 )
 @click.pass_context
-def cli(ctx: click.Context, config_path: Optional[str]) -> None:
+def cli(ctx: click.Context, config_path: str | None) -> None:
     """A command-line task management tool with dependency tracking."""
     ctx.ensure_object(dict)
     ctx.obj["config_path"] = get_config_path(config_path)

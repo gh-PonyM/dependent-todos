@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 
-
 def get_config_path(config_override: str | None = None) -> Path:
     """Get the path to the todos configuration file.
 
