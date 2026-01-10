@@ -550,7 +550,7 @@ class DependentTodosApp(App):
         yield Header()
 
         with Horizontal():
-            with Container(id="sidebar", classes="hidden"):
+            with Container(id="sidebar"):
                 tree = DependencyTree(self.tasks, root_task_id=self.current_task_id)
                 tree.id = "dep-tree"
                 tree.can_focus = False
@@ -564,6 +564,11 @@ class DependentTodosApp(App):
 
         yield Footer()
 
+    def on_mount(self) -> None:
+        """Initialize the UI after mounting."""
+        sidebar = self.query_one("#sidebar", Container)
+        sidebar.visible = False
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle task selection in the table."""
         table = self.query_one("#task-table", TaskTable)
@@ -575,7 +580,7 @@ class DependentTodosApp(App):
             details.update_task(task_id, self.tasks)
             # Refresh tree if visible
             sidebar = self.query_one("#sidebar", Container)
-            if "hidden" not in sidebar.classes:
+            if sidebar.visible:
                 tree = self.query_one("#dep-tree", DependencyTree)
                 tree.root_task_id = self.current_task_id
                 tree._build_tree()
@@ -624,7 +629,7 @@ class DependentTodosApp(App):
             self.action_refresh()
             # Refresh tree if visible
             sidebar = self.query_one("#sidebar", Container)
-            if "hidden" not in sidebar.classes:
+            if sidebar.visible:
                 tree = self.query_one("#dep-tree", DependencyTree)
                 tree.tasks = self.tasks
                 tree._build_tree()
@@ -667,10 +672,10 @@ class DependentTodosApp(App):
     def action_toggle_tree(self) -> None:
         """Toggle the dependency tree sidebar."""
         sidebar = self.query_one("#sidebar", Container)
-        if "hidden" in sidebar.classes:
+        if not sidebar.visible:
             if self.current_task_id:
                 # Show sidebar and refresh tree
-                sidebar.remove_class("hidden")
+                sidebar.visible = True
                 tree = self.query_one("#dep-tree", DependencyTree)
                 tree.tasks = self.tasks
                 tree.root_task_id = self.current_task_id
@@ -681,7 +686,7 @@ class DependentTodosApp(App):
                 self.notify("No task selected")
         else:
             # Hide sidebar
-            sidebar.add_class("hidden")
+            sidebar.visible = False
             tree = self.query_one("#dep-tree", DependencyTree)
             tree.root.remove_children()
             tree.refresh()

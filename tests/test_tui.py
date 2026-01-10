@@ -482,11 +482,11 @@ async def test_toggle_tree_sidebar(temp_dir):
 
         # Initially, sidebar should be hidden
         sidebar = pilot.app.query_one("#sidebar", Container)
-        assert "hidden" in sidebar.classes
+        assert not sidebar.visible
 
         # Press 't' to toggle tree - should show since task selected
         await pilot.press("t")
-        assert "hidden" not in sidebar.classes  # Sidebar visible
+        assert sidebar.visible  # Sidebar visible
         tree = pilot.app.query_one("#dep-tree", DependencyTree)
         # Tree should have nodes (can't easily check content, but refresh was called)
 
@@ -500,10 +500,10 @@ async def test_toggle_tree_sidebar(temp_dir):
 
         # Toggle off
         await pilot.press("t")
-        assert "hidden" in sidebar.classes  # Sidebar hidden
+        assert not sidebar.visible  # Sidebar hidden
         # Tree should be cleared
 
         # Try to toggle without task selected
         app.current_task_id = None
         await pilot.press("t")
-        assert "hidden" in sidebar.classes  # Still hidden, no task selected
+        assert not sidebar.visible  # Still hidden, no task selected
