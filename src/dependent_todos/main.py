@@ -203,8 +203,9 @@ def order(ctx: click.Context) -> None:
 
 @cli.command()
 @click.argument("task_id")
+@click.option("--details", is_flag=True, help="Show detailed dependency panels.")
 @click.pass_context
-def show(ctx: click.Context, task_id: str) -> None:
+def show(ctx: click.Context, task_id: str, details: bool) -> None:
     """Show detailed information about a specific task."""
     from rich.console import Console
     from rich.panel import Panel
@@ -246,58 +247,67 @@ def show(ctx: click.Context, task_id: str) -> None:
     info_table.add_row("Completed", str(task.completed) if task.completed else "-")
     info_table.add_row("Cancelled", str(task.cancelled))
 
+    # Add counts if not details
+    if not details:
+        dep_count = len(task.dependencies)
+        dependents = [tid for tid, t in tasks.items() if task_id in t.dependencies]
+        block_count = len(dependents)
+        info_table.add_row("Dependencies", str(dep_count))
+        info_table.add_row("Blocks", str(block_count))
+
     console.print(Panel(info_table, title=f"Task: {task_id}", border_style="blue"))
 
-    # Dependencies section
-    if task.dependencies:
-        dep_table = Table(show_header=False)
-        dep_table.add_column("Dependency ID", style="yellow")
-        dep_table.add_column("Message", style="white")
+    if details:
+        # Dependencies section
+        if task.dependencies:
+            dep_table = Table(show_header=False)
+            dep_table.add_column("Dependency ID", style="yellow")
+            dep_table.add_column("Message", style="white")
 
-        for dep_id in task.dependencies:
-            dep_task = tasks.get(dep_id)
-            if dep_task:
-                dep_state = dep_task.compute_state(tasks)
-                dep_state_text = Text(
-                    f"[{dep_state}]", style=state_colors.get(dep_state, "white")
-                )
-                dep_table.add_row(f"{dep_id} {dep_state_text}", dep_task.message)
-            else:
-                dep_table.add_row(dep_id, "[not found]")
+            for dep_id in task.dependencies:
+                dep_task = tasks.get(dep_id)
+                if dep_task:
+                    dep_state = dep_task.compute_state(tasks)
+                    dep_state_text = Text(
+                        f"[{dep_state}]", style=state_colors.get(dep_state, "white")
+                    )
+                    dep_table.add_row(f"{dep_id} {dep_state_text}", dep_task.message)
+                else:
+                    dep_table.add_row(dep_id, "[not found]")
 
-        console.print(Panel(dep_table, title="Dependencies", border_style="green"))
-    else:
-        console.print(
-            Panel("No dependencies", title="Dependencies", border_style="green")
-        )
-
-    # Tasks that depend on this one
-    dependents = [tid for tid, t in tasks.items() if task_id in t.dependencies]
-    if dependents:
-        block_table = Table(show_header=False)
-        block_table.add_column("Task ID", style="red")
-        block_table.add_column("Message", style="white")
-
-        for dep_id in dependents:
-            dep_task = tasks.get(dep_id)
-            if dep_task:
-                dep_state = dep_task.compute_state(tasks)
-                dep_state_text = Text(
-                    f"[{dep_state}]", style=state_colors.get(dep_state, "white")
-                )
-                block_table.add_row(f"{dep_id} {dep_state_text}", dep_task.message)
-
-        console.print(
-            Panel(block_table, title="Blocks These Tasks", border_style="red")
-        )
-    else:
-        console.print(
-            Panel(
-                "No tasks depend on this one",
-                title="Blocks These Tasks",
-                border_style="red",
+            console.print(Panel(dep_table, title="Dependencies", border_style="green"))
+        else:
+            console.print(
+                Panel("No dependencies", title="Dependencies", border_style="green")
             )
-        )
+
+        # Tasks that depend on this one
+        dependents = [tid for tid, t in tasks.items() if task_id in t.dependencies]
+        if dependents:
+            block_table = Table(show_header=False)
+            block_table.add_column("Task ID", style="red")
+            block_table.add_column("Message", style="white")
+
+            for dep_id in dependents:
+                dep_task = tasks.get(dep_id)
+                if dep_task:
+                    dep_state = dep_task.compute_state(tasks)
+                    dep_state_text = Text(
+                        f"[{dep_state}]", style=state_colors.get(dep_state, "white")
+                    )
+                    block_table.add_row(f"{dep_id} {dep_state_text}", dep_task.message)
+
+            console.print(
+                Panel(block_table, title="Blocks These Tasks", border_style="red")
+            )
+        else:
+            console.print(
+                Panel(
+                    "No tasks depend on this one",
+                    title="Blocks These Tasks",
+                    border_style="red",
+                )
+            )
 
 
 @cli.command()
@@ -377,7 +387,7 @@ def add(ctx: click.Context, interactive: bool) -> None:
                 return
 
     # Create task
-    task = Task(id=task_id, message=message, dependencies=dependencies)
+    task = Task(id=task_id, message=message, dependencies=dependencies, status="pending", cancelled=False, started=None, completed=None)
 
     # Save
     tasks[task_id] = task
