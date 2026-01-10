@@ -11,6 +11,7 @@ from textual.widgets import (
     Header,
     Input,
     Static,
+    Tabs,
     Tree,
 )
 from textual.screen import ModalScreen
@@ -24,9 +25,10 @@ from dependent_todos.storage import load_tasks_from_file
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
-    def __init__(self, tasks: dict[str, Task], **kwargs):
+    def __init__(self, tasks: dict[str, Task], filter_state: str = "all", **kwargs):
         super().__init__(**kwargs)
         self.tasks = tasks
+        self.filter_state = filter_state
         self.add_columns("ID", "State", "Message")
         self._populate_table()
 
@@ -47,7 +49,23 @@ class TaskTable(DataTable):
             "cancelled": "dim red",
         }
 
-        for task_id, task in sorted(self.tasks.items()):
+        # Filter tasks
+        filtered_tasks = {}
+        for task_id, task in self.tasks.items():
+            state = task.compute_state(self.tasks)
+            if self.filter_state == "all":
+                filtered_tasks[task_id] = task
+            elif self.filter_state == "ready":
+                if state == "pending":
+                    filtered_tasks[task_id] = task
+            elif self.filter_state == "done":
+                if state == "done":
+                    filtered_tasks[task_id] = task
+            elif self.filter_state == "pending":
+                if state in ("pending", "blocked", "in-progress"):
+                    filtered_tasks[task_id] = task
+
+        for task_id, task in sorted(filtered_tasks.items()):
             state = task.compute_state(self.tasks)
             state_text = Text(state, style=state_colors.get(state, "white"))
 
@@ -325,6 +343,7 @@ class DependentTodosApp(App):
         self.config_path = get_config_path()
         self.tasks = load_tasks_from_file(self.config_path)
         self.current_task_id = None
+        self.current_filter = "all"
         self.footer = f"Config: {self.config_path}"
 
     def compose(self) -> ComposeResult:
@@ -336,7 +355,8 @@ class DependentTodosApp(App):
                 pass  # Buttons replaced with key bindings
 
             with Container(id="main-content"):
-                yield TaskTable(self.tasks, id="task-table")
+                yield Tabs("All", "Ready", "Done", "Pending", id="filter-tabs")
+                yield TaskTable(self.tasks, filter_state=self.current_filter, id="task-table")
                 yield TaskDetails(id="task-details")
 
         yield Footer()
@@ -350,6 +370,13 @@ class DependentTodosApp(App):
             self.current_task_id = task_id
             details = self.query_one("#task-details", TaskDetails)
             details.update_task(task_id, self.tasks)
+
+    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
+        """Handle filter tab change."""
+        self.current_filter = str(event.tab.label.plain).lower()
+        table = self.query_one("#task-table", TaskTable)
+        table.filter_state = self.current_filter
+        table._populate_table()
 
     def action_add_task(self):
         """Add a new task using modal."""
