@@ -207,6 +207,71 @@ class AddTaskModal(ModalScreen):
             self.dismiss()
 
 
+class UpdateTaskModal(ModalScreen):
+    """Modal for updating a task."""
+
+    def __init__(self, task_id: str):
+        super().__init__()
+        self.task_id = task_id
+
+    def compose(self) -> ComposeResult:
+        app = cast(DependentTodosApp, self.app)
+        task = app.tasks.get(self.task_id)
+        if not task:
+            self.dismiss()
+            return
+        yield Static(f"Update Task: {self.task_id}", id="title")
+        yield Input(value=task.message, id="task-message")
+        yield Button("Update", id="update")
+        yield Button("Cancel", id="cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "update":
+            message = self.query_one("#task-message", Input).value
+            if message.strip():
+                app = cast(DependentTodosApp, self.app)
+                task = app.tasks.get(self.task_id)
+                if task:
+                    task.message = message
+                    from dependent_todos.storage import save_tasks_to_file
+                    save_tasks_to_file(app.tasks, app.config_path)
+                    app.action_refresh()
+                self.dismiss()
+            else:
+                self.notify("Task message cannot be empty")
+        elif event.button.id == "cancel":
+            self.dismiss()
+
+
+class DeleteTaskModal(ModalScreen):
+    """Modal for deleting a task."""
+
+    def __init__(self, task_id: str):
+        super().__init__()
+        self.task_id = task_id
+
+    def compose(self) -> ComposeResult:
+        app = cast(DependentTodosApp, self.app)
+        task = app.tasks.get(self.task_id)
+        message = task.message if task else "Unknown"
+        yield Static(f"Delete task '{self.task_id}: {message}'?", id="title")
+        yield Button("Delete", id="delete")
+        yield Button("Cancel", id="cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "delete":
+            app = cast(DependentTodosApp, self.app)
+            if self.task_id in app.tasks:
+                del app.tasks[self.task_id]
+                from dependent_todos.storage import save_tasks_to_file
+                save_tasks_to_file(app.tasks, app.config_path)
+                app.action_refresh()
+                app.current_task_id = None
+            self.dismiss()
+        elif event.button.id == "cancel":
+            self.dismiss()
+
+
 class DependentTodosApp(App):
     """Main Textual application for dependent todos."""
 
@@ -249,6 +314,7 @@ class DependentTodosApp(App):
         super().__init__()
         self.config_path = get_config_path()
         self.tasks = load_tasks_from_file(self.config_path)
+        self.current_task_id = None
 
     def compose(self) -> ComposeResult:
         """Compose the UI."""
@@ -284,12 +350,27 @@ class DependentTodosApp(App):
         row_key = event.row_key
         if row_key is not None:
             task_id = table.get_row(row_key)[0]
+            self.current_task_id = task_id
             details = self.query_one("#task-details", TaskDetails)
             details.update_task(task_id, self.tasks)
 
     def action_add_task(self):
         """Add a new task using modal."""
         self.push_screen(AddTaskModal())
+
+    def action_update_task(self):
+        """Update the selected task using modal."""
+        if self.current_task_id:
+            self.push_screen(UpdateTaskModal(self.current_task_id))
+        else:
+            self.notify("No task selected")
+
+    def action_delete_task(self):
+        """Delete the selected task using modal."""
+        if self.current_task_id:
+            self.push_screen(DeleteTaskModal(self.current_task_id))
+        else:
+            self.notify("No task selected")
 
     def action_refresh(self):
         """Refresh the task data."""
