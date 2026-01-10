@@ -35,27 +35,37 @@ Button {
 
 BaseModalScreen {
   align: center middle;
-}
 
-BaseModalScreen * {
-  border: green;
+  Container {
+    layout: horizontal;
+    align: center middle;
+    height: auto;
+  }
+
+  .title {
+    margin: 1 1 1 2;
+  }
+
+  .modal-content {
+    content-align: center middle;
+    height: 1fr;
+    align: center top;
+  }
+
+  .modal-button {
+    width: 1fr;
+  }
+
+  Button {
+    margin: 2;
+  }
 }
 
 #modal-dialog {
-    grid-size: 2;
-    grid-gutter: 1 2;
-    grid-rows: 1fr 3;
-    padding: 0 1;
-    width: 70;
-    height: 30;
-    border: thick $background 80%;
-    background: $surface;
-}
-
-.modal-content {
-  content-align: center middle;
-}
-
-.modal-button {
-  width: 100%;
+  padding: 0 1;
+  width: 70;
+  height: auto;
+  max-height: 90%;
+  border: thick $background 80%;
+  background: $surface;
 }

@@ -3,7 +3,7 @@
 from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import cast
-from textual.containers import Container, Grid, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import (
     Button,
     DataTable,
@@ -263,31 +263,33 @@ class DeleteTaskModal(ModalScreen):
 class BaseModalScreen(ModalScreen):
     """Base modal screen with extensible content and buttons."""
 
+    TITLE = "Modal title"
+
     def compose(self) -> ComposeResult:
-        with Grid(id="modal-dialog"):
-            yield from self.get_header()
+        # with Grid(id="modal-dialog"):
+        with Vertical(id="modal-dialog"):
+            yield Static(self.TITLE, classes="title")
             with Container(classes="modal-content"):
                 yield from self.get_content()
-            yield from self.get_buttons()
+            with Container():
+                yield from self.get_buttons()
 
     def get_content(self) -> ComposeResult:
         """Override to provide modal content."""
         yield from []
 
-    def get_header(self) -> ComposeResult:
-        yield from []
-
     def get_buttons(self) -> ComposeResult:
         """Override to provide modal buttons."""
-        yield Button("Ok", id="ok", classes="modal-button")
+        yield Button("Ok", id="ok", classes="modal-button", variant="success")
         yield Button("Cancel", id="cancel", classes="modal-button")
 
 
 class AddTaskModal(BaseModalScreen):
     """Modal for adding a new task."""
 
+    TITLE = "Add a new task"
+
     def get_content(self) -> ComposeResult:
-        yield Static("Add New Task", id="title")
         yield Input(placeholder="Task message", id="task-message")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
