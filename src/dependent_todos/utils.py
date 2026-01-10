@@ -35,7 +35,7 @@ def slugify(text: str, max_length: int = 50) -> str:
 
 
 def generate_unique_id(
-    message: str, existing_ids: set[str], max_length: int = 50
+    message: str, existing_ids: set[str], max_length: int = 20
 ) -> str:
     """Generate a unique slug ID from a message.
 

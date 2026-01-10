@@ -32,40 +32,40 @@ Button {
 }
 
 /* Modal styles */
+$title_height: 2;
+$footer_height: 3;
+$content_height: 7;
 
 BaseModalScreen {
   align: center middle;
 
-  .title {
-    margin: 1 1 1 2;
-  }
-
-  .modal-content {
-    content-align: center top;
-    align: center top;
-  }
-
-  .modal-button {
-    width: 1fr;
-  }
-
-  Button {
-    margin: 2;
-    column-span: 2;
-  }
   Grid {
-    grid-size: 4 3;
-    padding: 0 1;
-    max-width: 80%;
-    max-height: 90%;
+    height: 30;
+    grid-size: 4 12;
+    grid-gutter: 1 1;
+    padding: 1 2;
+    width: 100;
     border: thick $background 80%;
     background: $surface;
   }
   #task-id {
-    color: red;
+    color: magenta;
     column-span: 3;
+    row-span: $title_height;
   }
   #task-message {
     column-span: 4;
+    row-span: $content_height;
+  }
+  .title {
+    column-span: 2;
+    row-span: $title_height;
+    margin-top: 1;
+    margin-left: 1;
+  }
+  .modal-button {
+    column-span: 2;
+    row-span: $footer_height;
+    width: 1fr;
   }
 }

@@ -2,7 +2,7 @@
 
 from rich.text import Text
 from textual.app import App, ComposeResult
-from typing import cast
+from typing import cast, Literal
 from textual.containers import Container, Horizontal, Grid
 from textual.widgets import (
     Button,
@@ -16,6 +16,7 @@ from textual.widgets import (
     Tree,
 )
 from textual.screen import ModalScreen
+from textual import events
 
 from dependent_todos.config import get_config_path
 from dependent_todos.dependencies import get_ready_tasks, topological_sort
@@ -195,82 +196,34 @@ class TaskDetails(Static):
         return details
 
 
-class UpdateTaskModal(ModalScreen):
-    """Modal for updating a task."""
-
-    def __init__(self, task_id: str):
-        super().__init__()
-        self.task_id = task_id
-
-    def compose(self) -> ComposeResult:
-        app = cast(DependentTodosApp, self.app)
-        task = app.tasks.get(self.task_id)
-        if not task:
-            self.dismiss()
-            return
-        yield Static(f"Update Task: {self.task_id}", id="title")
-        yield Input(value=task.message, id="task-message")
-        yield Button("Update", id="update")
-        yield Button("Cancel", id="cancel")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "update":
-            message = self.query_one("#task-message", Input).value
-            if message.strip():
-                app = cast(DependentTodosApp, self.app)
-                task = app.tasks.get(self.task_id)
-                if task:
-                    task.message = message
-                    from dependent_todos.storage import save_tasks_to_file
-
-                    save_tasks_to_file(app.tasks, app.config_path)
-                    app.action_refresh()
-                self.dismiss()
-            else:
-                self.notify("Task message cannot be empty")
-        elif event.button.id == "cancel":
-            self.dismiss()
-
-
-class DeleteTaskModal(ModalScreen):
-    """Modal for deleting a task."""
-
-    def __init__(self, task_id: str):
-        super().__init__()
-        self.task_id = task_id
-
-    def compose(self) -> ComposeResult:
-        app = cast(DependentTodosApp, self.app)
-        task = app.tasks.get(self.task_id)
-        message = task.message if task else "Unknown"
-        yield Static(f"Delete task '{self.task_id}: {message}'?", id="title")
-        yield Button("Delete", id="delete")
-        yield Button("Cancel", id="cancel")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "delete":
-            app = cast(DependentTodosApp, self.app)
-            if self.task_id in app.tasks:
-                del app.tasks[self.task_id]
-                from dependent_todos.storage import save_tasks_to_file
-
-                save_tasks_to_file(app.tasks, app.config_path)
-                app.action_refresh()
-                app.current_task_id = None
-            self.dismiss()
-        elif event.button.id == "cancel":
-            self.dismiss()
-
-
 class BaseModalScreen(ModalScreen):
     """Base modal screen with extensible content and buttons."""
 
     TITLE = "Modal title"
 
+    BTN_OKAY_LABEL: str = "Ok"
+    BTN_OKAY_VARIANT: Literal["default", "primary", "success", "warning", "error"] = (
+        "success"
+    )
+    BTN_CANCEL_LABEL: str = "Cancel"
+    BTN_CANCEL_ID: str = "cancel"
+    BTN_CANCEL_VARIANT: Literal["default", "primary", "success", "warning", "error"] = (
+        "default"
+    )
+
+    BINDINGS = [
+        ("escape", "dismiss", "Close modal"),
+        ("tab", "next_input", "Next input field"),
+        ("shift+tab", "prev_input", "Previous input field"),
+    ]
+
     def compose(self) -> ComposeResult:
         # with Grid(id="modal-dialog"):
         with Grid(classes="modal-dialog"):
             yield Static(self.TITLE, classes="title")
+            # TODO: Here I am asking myself if we can check if the elements have a row-span defined.
+            # if not we take the height from the title, and the height of the button as rowspan and use 12 (grid row number)
+            # set the heights dynamically, is this possible?
             yield from self.get_content()
             yield from self.get_buttons()
 
@@ -279,19 +232,131 @@ class BaseModalScreen(ModalScreen):
         yield from []
 
     def get_buttons(self) -> ComposeResult:
-        """Override to provide modal buttons."""
-        yield Button("Ok", id="ok", classes="modal-button", variant="success")
-        yield Button("Cancel", id="cancel", classes="modal-button")
+        """Provide modal buttons using class variables."""
+        yield Button(
+            self.BTN_OKAY_LABEL,
+            id="ok",
+            classes="modal-button",
+            variant=self.BTN_OKAY_VARIANT,
+        )
+        yield Button(
+            self.BTN_CANCEL_LABEL,
+            id=self.BTN_CANCEL_ID,
+            classes="modal-button",
+            variant=self.BTN_CANCEL_VARIANT,
+        )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ok":
             self.on_ok_pressed()
-        elif event.button.id == "cancel":
+        elif event.button.id == self.BTN_CANCEL_ID:
             self.dismiss()
 
     def on_ok_pressed(self):
         """Override to handle OK button press."""
         pass
+
+    def on_click(self, event: events.Click) -> None:
+        """Close modal when clicking outside the dialog."""
+        if event.button == 1 and event.control == self:
+            self.dismiss()
+
+    def action_next_input(self):
+        """Focus the next input field."""
+        focusables = list(self.query("Input, TextArea").nodes)
+        if not focusables:
+            self.notify("No inputs to cycle")
+            return
+        current = self.focused
+        if current in focusables:
+            index = focusables.index(current)
+            next_index = (index + 1) % len(focusables)
+        else:
+            next_index = 0
+        self.set_focus(focusables[next_index])
+
+    def action_prev_input(self):
+        """Focus the previous input field."""
+        focusables = list(self.query("Input, TextArea").nodes)
+        if focusables:
+            current = self.focused
+            if current in focusables:
+                index = focusables.index(current)
+                prev_index = (index - 1) % len(focusables)
+            else:
+                prev_index = -1
+            self.set_focus(focusables[prev_index])
+
+
+class UpdateTaskModal(BaseModalScreen):
+    """Modal for updating a task."""
+
+    TITLE = "Update Task"
+    BTN_OKAY_LABEL = "Update"
+    BTN_OKAY_VARIANT = "primary"
+
+    def __init__(self, task_id: str):
+        super().__init__()
+        self.task_id = task_id
+
+    def get_content(self) -> ComposeResult:
+        app = cast(DependentTodosApp, self.app)
+        task = app.tasks.get(self.task_id)
+        if not task:
+            self.dismiss()
+            return
+        yield Static(f"Task ID: {self.task_id}", classes="task-id")
+        yield Input(value=task.message, id="task-message")
+
+    def on_mount(self) -> None:
+        self.query_one("#task-message", Input).focus()
+
+    def on_ok_pressed(self):
+        message = self.query_one("#task-message", Input).value
+        if message.strip():
+            app = cast(DependentTodosApp, self.app)
+            task = app.tasks.get(self.task_id)
+            if task:
+                task.message = message
+                from dependent_todos.storage import save_tasks_to_file
+
+                save_tasks_to_file(app.tasks, app.config_path)
+                app.action_refresh()
+            self.dismiss()
+        else:
+            self.notify("Task message cannot be empty")
+
+
+class DeleteTaskModal(BaseModalScreen):
+    """Modal for deleting a task."""
+
+    TITLE = "Delete Task"
+    BTN_OKAY_LABEL = "Delete"
+    BTN_OKAY_VARIANT = "error"
+
+    def __init__(self, task_id: str):
+        super().__init__()
+        self.task_id = task_id
+
+    def get_content(self) -> ComposeResult:
+        app = cast(DependentTodosApp, self.app)
+        task = app.tasks.get(self.task_id)
+        message = task.message if task else "Unknown"
+        yield Static(
+            f"Are you sure you want to delete task '{self.task_id}: {message}'?",
+            classes="confirmation",
+        )
+
+    def on_ok_pressed(self):
+        app = cast(DependentTodosApp, self.app)
+        if self.task_id in app.tasks:
+            del app.tasks[self.task_id]
+            from dependent_todos.storage import save_tasks_to_file
+
+            save_tasks_to_file(app.tasks, app.config_path)
+            app.action_refresh()
+            app.current_task_id = None
+        self.dismiss()
 
 
 class AddTaskModal(BaseModalScreen):
@@ -299,10 +364,8 @@ class AddTaskModal(BaseModalScreen):
 
     TITLE = "Add a new task"
 
-    # TODO focus on textarea on pushing the screen
-
     def get_content(self) -> ComposeResult:
-        yield Static("ID: ", id="task-id")
+        yield Input("", id="task-id", placeholder="Task ID", disabled=True)
         yield TextArea(placeholder="Task message", id="task-message")
 
     def on_mount(self) -> None:
@@ -313,7 +376,8 @@ class AddTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         existing_ids = set(app.tasks.keys())
         task_id = generate_unique_id(message, existing_ids)
-        self.query_one("#task-id", Static).update(f"ID: {task_id}")
+        inp = self.query_one("#task-id", Input)
+        inp.value = task_id
 
     def on_ok_pressed(self):
         message = self.query_one("#task-message", TextArea).text
@@ -349,7 +413,7 @@ class DependentTodosApp(App):
         ("r", "refresh", "Refresh"),
         ("y", "ready_tasks", "Show ready"),
         ("o", "topological_order", "Show order"),
-        ("u", "update_task", "Update selected task"),
+        ("e", "update_task", "Update selected task"),
         ("d", "delete_task", "Delete selected task"),
         ("tab", "next_tab", "Next tab"),
         ("shift+tab", "previous_tab", "Previous tab"),
