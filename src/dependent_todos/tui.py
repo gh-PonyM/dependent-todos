@@ -2,14 +2,17 @@
 
 from rich.text import Text
 from textual.app import App, ComposeResult
+from typing import cast
 from textual.containers import Container, Horizontal
 from textual.widgets import (
     Button,
     DataTable,
     Header,
+    Input,
     Static,
     Tree,
 )
+from textual.screen import ModalScreen
 
 from dependent_todos.config import get_config_path
 from dependent_todos.dependencies import get_ready_tasks, topological_sort
@@ -173,6 +176,37 @@ class TaskDetails(Static):
         return details
 
 
+class AddTaskModal(ModalScreen):
+    """Modal for adding a new task."""
+
+    def compose(self) -> ComposeResult:
+        yield Static("Add New Task", id="title")
+        yield Input(placeholder="Task message", id="task-message")
+        yield Button("Add", id="add")
+        yield Button("Cancel", id="cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add":
+            message = self.query_one("#task-message", Input).value
+            if message.strip():
+                # For now, add without dependencies
+                from dependent_todos.utils import generate_unique_id
+                from dependent_todos.storage import save_tasks_to_file
+
+                app = cast(DependentTodosApp, self.app)
+                existing_ids = set(app.tasks.keys())
+                task_id = generate_unique_id(message, existing_ids)
+                task = Task(id=task_id, message=message, dependencies=[], status="pending", cancelled=False, started=None, completed=None)
+                app.tasks[task_id] = task
+                save_tasks_to_file(app.tasks, app.config_path)
+                app.action_refresh()
+                self.dismiss()
+            else:
+                self.notify("Task message cannot be empty")
+        elif event.button.id == "cancel":
+            self.dismiss()
+
+
 class DependentTodosApp(App):
     """Main Textual application for dependent todos."""
 
@@ -254,10 +288,8 @@ class DependentTodosApp(App):
             details.update_task(task_id, self.tasks)
 
     def action_add_task(self):
-        """Add a new task (placeholder - would need input dialogs)."""
-        self.notify(
-            "Add task functionality not implemented in TUI yet. Use CLI: dependent-todos add"
-        )
+        """Add a new task using modal."""
+        self.push_screen(AddTaskModal())
 
     def action_refresh(self):
         """Refresh the task data."""
