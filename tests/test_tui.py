@@ -35,6 +35,92 @@ def test_initial_screen_snapshot(temp_dir, snap_compare):
     assert snap_compare("../src/dependent_todos/tui.py", run_before=run_before)
 
 
+def test_add_task_modal_snapshot(temp_dir, snap_compare):
+    """Test snapshot of the add task modal."""
+
+    async def run_before(pilot):
+        # Add some tasks for dependency options
+        from dependent_todos.models import Task
+        pilot.app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task2": Task(
+                id="task2",
+                message="Task 2",
+                dependencies=[],
+                status="done",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+        await pilot.press("a")  # Open add modal
+
+    assert snap_compare("../src/dependent_todos/tui.py", run_before=run_before)
+
+
+def test_update_task_modal_snapshot(temp_dir, snap_compare):
+    """Test snapshot of the update task modal."""
+
+    async def run_before(pilot):
+        # Add some tasks
+        from dependent_todos.models import Task
+        pilot.app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task2": Task(
+                id="task2",
+                message="Task 2",
+                dependencies=["task1"],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+        pilot.app.current_task_id = "task2"
+        await pilot.press("e")  # Open update modal
+
+    assert snap_compare("../src/dependent_todos/tui.py", run_before=run_before)
+
+
+def test_delete_task_modal_snapshot(temp_dir, snap_compare):
+    """Test snapshot of the delete task modal."""
+
+    async def run_before(pilot):
+        # Add a task
+        from dependent_todos.models import Task
+        pilot.app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+        pilot.app.current_task_id = "task1"
+        await pilot.press("d")  # Open delete modal
+
+    assert snap_compare("../src/dependent_todos/tui.py", run_before=run_before)
+
+
 @pytest.mark.asyncio
 async def test_refresh_key(temp_dir):
     """Test the refresh key functionality."""
@@ -507,3 +593,197 @@ async def test_toggle_tree_sidebar(temp_dir):
         app.current_task_id = None
         await pilot.press("t")
         assert not sidebar.visible  # Still hidden, no task selected
+
+
+@pytest.mark.asyncio
+async def test_tree_node_selection_updates_current_task(temp_dir):
+    """Test that selecting a tree node updates the current task and details."""
+    app = DependentTodosApp()
+    async with app.run_test() as pilot:
+        # Add tasks with dependencies
+        from dependent_todos.models import Task
+
+        app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Root Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task2": Task(
+                id="task2",
+                message="Task 2 depends on Task 1",
+                dependencies=["task1"],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+
+        # Select task2 initially
+        app.current_task_id = "task2"
+        details = cast(TaskDetails, pilot.app.query_one("#task-details"))
+        details.update_task("task2", app.tasks)
+
+        # Show tree centered on task2
+        sidebar = pilot.app.query_one("#sidebar", Container)
+        tree = pilot.app.query_one("#dep-tree", DependencyTree)
+        sidebar.visible = True
+        tree.tasks = app.tasks
+        tree.root_task_id = "task2"
+        tree._build_tree()
+        tree.refresh()
+
+        # Initially, current task is task2
+        assert app.current_task_id == "task2"
+        assert "task2" in str(details.render())
+
+        # Simulate selecting task1 in tree (child of task2)
+        # Find the node for task1
+        def find_node_by_label(parent, label_prefix):
+            for child in parent.children:
+                if str(child.label).startswith(label_prefix):
+                    return child
+                result = find_node_by_label(child, label_prefix)
+                if result:
+                    return result
+            return None
+
+        task1_node = find_node_by_label(tree.root, "task1:")
+        assert task1_node is not None
+
+        # Trigger node selected event
+        class MockEvent:
+            def __init__(self, node):
+                self.node = node
+
+        event = MockEvent(task1_node)
+        app.on_tree_node_selected(event)
+
+        # Check that current task updated to task1
+        assert app.current_task_id == "task1"
+        assert "task1" in str(details.render())
+
+        # Tree should be rebuilt centered on task1
+        assert tree.root_task_id == "task1"
+
+
+@pytest.mark.asyncio
+async def test_tab_switch_clears_tree(temp_dir):
+    """Test that switching tabs clears the dependency tree if visible."""
+    app = DependentTodosApp()
+    async with app.run_test() as pilot:
+        # Add tasks
+        from dependent_todos.models import Task
+
+        app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task2": Task(
+                id="task2",
+                message="Task 2",
+                dependencies=[],
+                status="done",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+
+        # Show tree
+        app.current_task_id = "task1"
+        sidebar = pilot.app.query_one("#sidebar", Container)
+        tree = pilot.app.query_one("#dep-tree", DependencyTree)
+        sidebar.visible = True
+        tree.tasks = app.tasks
+        tree.root_task_id = "task1"
+        tree._build_tree()
+        tree.refresh()
+
+        # Tree should have children (at least root)
+        def count_nodes(node):
+            count = 1
+            for child in node.children:
+                count += count_nodes(child)
+            return count
+
+        assert count_nodes(tree.root) > 1  # More than just root
+
+        # Switch to "Done" tab
+        tabs = cast(FocusableTabs, pilot.app.query_one("#filter-tabs"))
+        await pilot.press("tab")  # To Todo
+        await pilot.press("tab")  # To Done
+
+        # Tree should be cleared
+        assert count_nodes(tree.root) == 1  # Only root, no children
+
+
+@pytest.mark.asyncio
+async def test_modal_select_fields_population(temp_dir):
+    """Test that modal select fields populate with expected options."""
+    from textual.widgets import SelectionList
+
+    app = DependentTodosApp()
+    async with app.run_test() as pilot:
+        # Add tasks
+        from dependent_todos.models import Task
+
+        app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task2": Task(
+                id="task2",
+                message="Task 2",
+                dependencies=[],
+                status="done",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task3": Task(
+                id="task3",
+                message="Task 3",
+                dependencies=["task1"],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+
+        # Test AddTaskModal options
+        await pilot.press("a")
+        assert isinstance(pilot.app.screen, AddTaskModal)
+        selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
+        # Should have 3 options (all tasks, including done)
+        assert len(selection_list._options) == 3
+        await pilot.press("escape")
+
+        # Test UpdateTaskModal options for task3
+        app.current_task_id = "task3"
+        await pilot.press("e")
+        assert isinstance(pilot.app.screen, UpdateTaskModal)
+        selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
+        # Should have 2 options (exclude self task3)
+        assert len(selection_list._options) == 2
+        # task1 should be selected
+        assert "task1" in selection_list.selected
+        await pilot.press("escape")

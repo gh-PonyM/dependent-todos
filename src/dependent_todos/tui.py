@@ -1,5 +1,6 @@
 """Textual TUI interface for dependent todos."""
 
+import logging
 from datetime import datetime
 from rich.text import Text
 from textual.app import App, ComposeResult
@@ -26,6 +27,8 @@ from dependent_todos.dependencies import detect_circular_dependencies, get_ready
 from dependent_todos.models import STATE_COLORS, Task
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
 from dependent_todos.utils import generate_unique_id
+
+logger = logging.getLogger(__name__)
 
 # UI Constants
 MAX_MESSAGE_DISPLAY_LENGTH = 50
@@ -345,12 +348,15 @@ class UpdateTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         options = []
         for task_id, task in app.tasks.items():
-            if task_id != self.task_id and task.status != "done":  # Exclude self and done tasks
+            if task_id != self.task_id:  # Exclude self
                 state = task.compute_state(app.tasks)
                 display_text = f"{task_id}: {task.message} [{state}]"
                 # Pre-select current dependencies
                 selected = task_id in app.tasks[self.task_id].dependencies
                 options.append(Selection(display_text, task_id, selected))
+        logger.info(f"UpdateTaskModal: Found {len(options)} dependency options for task {self.task_id}")
+        if not options:
+            logger.warning(f"UpdateTaskModal: No dependency options available for task {self.task_id}. Total tasks: {len(app.tasks)}")
         return options
 
     def _get_depending_on_text(self) -> str:
@@ -457,10 +463,12 @@ class AddTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         options = []
         for task_id, task in app.tasks.items():
-            if task.status != "done":  # Exclude done tasks
-                state = task.compute_state(app.tasks)
-                display_text = f"{task_id}: {task.message} [{state}]"
-                options.append(Selection(display_text, task_id))
+            state = task.compute_state(app.tasks)
+            display_text = f"{task_id}: {task.message} [{state}]"
+            options.append(Selection(display_text, task_id))
+        logger.info(f"AddTaskModal: Found {len(options)} dependency options. Total tasks: {len(app.tasks)}")
+        if not options:
+            logger.warning("AddTaskModal: No dependency options available - no tasks exist")
         return options
 
     def get_content(self) -> ComposeResult:
@@ -582,6 +590,22 @@ class DependentTodosApp(App):
             sidebar = self.query_one("#sidebar", Container)
             if sidebar.visible:
                 tree = self.query_one("#dep-tree", DependencyTree)
+                tree.root_task_id = self.current_task_id
+                tree._build_tree()
+                tree.refresh()
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Handle task selection in the tree."""
+        tree = self.query_one("#dep-tree", DependencyTree)
+        if event.node != tree.root:
+            # Extract task_id from node label (format: "task_id: message [state]")
+            label = str(event.node.label)
+            task_id = label.split(":")[0].strip()
+            if task_id in self.tasks:
+                self.current_task_id = task_id
+                details = self.query_one("#task-details", TaskDetails)
+                details.update_task(task_id, self.tasks)
+                # Rebuild tree centered on selected task
                 tree.root_task_id = self.current_task_id
                 tree._build_tree()
                 tree.refresh()
@@ -750,6 +774,12 @@ class DependentTodosApp(App):
             table = self.query_one("#task-table", TaskTable)
             table.filter_state = self.current_filter
             table._populate_table()
+            # Clear tree if visible to avoid showing stale dependencies
+            sidebar = self.query_one("#sidebar", Container)
+            if sidebar.visible:
+                tree = self.query_one("#dep-tree", DependencyTree)
+                tree.root.remove_children()
+                tree.refresh()
 
     def on_key(self, event: events.Key) -> None:
         """Handle key presses."""
