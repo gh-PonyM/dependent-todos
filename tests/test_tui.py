@@ -3,7 +3,7 @@
 import pytest
 from typing import cast
 
-from dependent_todos.tui import DependentTodosApp, FocusableTabs
+from dependent_todos.tui import DependentTodosApp, FocusableTabs, TaskTable, TaskDetails
 
 
 @pytest.mark.asyncio
@@ -52,30 +52,37 @@ async def test_ready_tasks_key():
 async def test_navigation_and_focus():
     """Test tab switching and focus navigation with up/down keys."""
     app = DependentTodosApp()
-    # Add some tasks for table navigation
-    from dependent_todos.models import Task
-
-    app.tasks = {
-        "task1": Task(
-            id="task1",
-            message="Task 1",
-            dependencies=[],
-            status="pending",
-            cancelled=False,
-            started=None,
-            completed=None,
-        ),
-        "task2": Task(
-            id="task2",
-            message="Task 2",
-            dependencies=[],
-            status="pending",
-            cancelled=False,
-            started=None,
-            completed=None,
-        ),
-    }
     async with app.run_test() as pilot:
+        # Add some tasks for table navigation
+        from dependent_todos.models import Task
+
+        app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task2": Task(
+                id="task2",
+                message="Task 2",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+        # Refresh the table and details with new tasks
+        table = cast(TaskTable, pilot.app.query_one("#task-table"))
+        table.refresh_data(app.tasks)
+        assert table.row_count == 2
+        details_widget = cast(TaskDetails, pilot.app.query_one("#task-details"))
+        details_widget.tasks = app.tasks
+        details_widget.refresh()
         tabs = cast(FocusableTabs, pilot.app.query_one("#filter-tabs"))
         table = pilot.app.query_one("#task-table")
         app_instance = cast(DependentTodosApp, pilot.app)
@@ -120,9 +127,18 @@ async def test_navigation_and_focus():
         # When table is focused, up/down should navigate (focus stays on table)
         await pilot.press("down")
         assert pilot.app.focused == table
+        # After pressing down, cursor should be at row 1, details should show task2
+        assert table.cursor_row == 1
+        details = pilot.app.query_one("#task-details")
+        assert "task2" in str(details.render())
+        assert app_instance.current_task_id == "task2"
 
         await pilot.press("up")
         assert pilot.app.focused == table
+        # After pressing up, cursor should be at row 0, details should show task1
+        assert table.cursor_row == 0
+        assert "task1" in str(details.render())
+        assert app_instance.current_task_id == "task1"
 
 
 @pytest.mark.asyncio

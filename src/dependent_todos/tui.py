@@ -154,13 +154,14 @@ class TaskDetails(Static):
         state_colors = STATE_COLORS
 
         details = f"""[bold cyan]ID:[/bold cyan] {task.id}
-[bold cyan]Message:[/bold cyan] {task.message}
 [bold cyan]State:[/bold cyan] [{state_colors.get(state, "white")}]{state}[/{state_colors.get(state, "white")}]
 [bold cyan]Status:[/bold cyan] {task.status}
 [bold cyan]Created:[/bold cyan] {task.created}
 [bold cyan]Started:[/bold cyan] {task.started or "-"}
 [bold cyan]Completed:[/bold cyan] {task.completed or "-"}
 [bold cyan]Cancelled:[/bold cyan] {task.cancelled}
+
+{task.message}
 
 [bold green]Dependencies:[/bold green]
 """
@@ -446,7 +447,7 @@ class DependentTodosApp(App):
         if current_tab is not None:
             current_index = tabs._tabs.index(current_tab)
             next_index = (current_index + 1) % len(tabs._tabs)
-            tabs.active = tabs._tabs[next_index].id
+            tabs.active = cast(str, tabs._tabs[next_index].id)
             self._update_filter_from_tab()
 
     def action_previous_tab(self):
@@ -456,7 +457,7 @@ class DependentTodosApp(App):
         if current_tab is not None:
             current_index = tabs._tabs.index(current_tab)
             prev_index = (current_index - 1) % len(tabs._tabs)
-            tabs.active = tabs._tabs[prev_index].id
+            tabs.active = cast(str, tabs._tabs[prev_index].id)
             self._update_filter_from_tab()
 
     def action_focus_next(self):
@@ -499,13 +500,31 @@ class DependentTodosApp(App):
             event.prevent_default()
             self.action_previous_tab()
         elif event.key == "up":
-            table = self.query_one("#task-table")
-            if not table.has_focus:
+            table = cast(TaskTable, self.query_one("#task-table"))
+            if table.has_focus:
+                event.prevent_default()
+                new_row = max(0, table.cursor_row - 1)
+                table.move_cursor(row=new_row)
+                row_key = list(table.rows.keys())[new_row]
+                task_id = table.get_row(row_key)[0]
+                self.current_task_id = task_id
+                details = self.query_one("#task-details", TaskDetails)
+                details.update_task(task_id, self.tasks)
+            else:
                 self.action_focus_previous()
                 event.prevent_default()
         elif event.key == "down":
-            table = self.query_one("#task-table")
-            if not table.has_focus:
+            table = cast(TaskTable, self.query_one("#task-table"))
+            if table.has_focus:
+                event.prevent_default()
+                new_row = min(len(table.rows) - 1, table.cursor_row + 1)
+                table.move_cursor(row=new_row)
+                row_key = list(table.rows.keys())[new_row]
+                task_id = table.get_row(row_key)[0]
+                self.current_task_id = task_id
+                details = self.query_one("#task-details", TaskDetails)
+                details.update_task(task_id, self.tasks)
+            else:
                 self.action_focus_next()
                 event.prevent_default()
 
