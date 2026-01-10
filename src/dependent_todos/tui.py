@@ -573,6 +573,7 @@ class DependentTodosApp(App):
                 tree = self.query_one("#dep-tree", DependencyTree)
                 tree.root_task_id = self.current_task_id
                 tree._build_tree()
+                tree.refresh()
 
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         """Handle filter tab change."""
@@ -621,6 +622,7 @@ class DependentTodosApp(App):
                 tree = self.query_one("#dep-tree", DependencyTree)
                 tree.tasks = self.tasks
                 tree._build_tree()
+                tree.refresh()
         except Exception as e:
             self.notify(f"Error saving tasks: {e}", severity="error")
 
@@ -667,6 +669,7 @@ class DependentTodosApp(App):
                 tree.tasks = self.tasks
                 tree.root_task_id = self.current_task_id
                 tree._build_tree()
+                tree.refresh()
                 self.notify("Dependency tree shown")
             else:
                 self.notify("No task selected")
