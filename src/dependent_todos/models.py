@@ -73,3 +73,13 @@ class Task(BaseModel):
 
         # Fallback (shouldn't reach here with validation)
         return "pending"
+
+
+# Color mapping for task states
+STATE_COLORS = {
+    "pending": "yellow",
+    "in-progress": "blue",
+    "done": "green",
+    "blocked": "red",
+    "cancelled": "dim red",
+}

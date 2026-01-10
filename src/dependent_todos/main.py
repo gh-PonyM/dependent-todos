@@ -4,7 +4,7 @@ import click
 from datetime import datetime
 
 from .config import get_config_path
-from .models import Task
+from .models import STATE_COLORS, Task
 from .storage import load_tasks_from_file, save_tasks_to_file
 from .utils import generate_unique_id
 
@@ -52,14 +52,8 @@ def list(ctx: click.Context) -> None:
     for task_id, task in tasks.items():
         task_states[task_id] = task.compute_state(tasks)
 
-    # Color mapping for states
-    state_colors = {
-        "pending": "yellow",
-        "in-progress": "blue",
-        "done": "green",
-        "blocked": "red",
-        "cancelled": "dim red",
-    }
+    # Use state colors from constants
+    state_colors = STATE_COLORS
 
     def human_friendly_date(dt: datetime) -> str:
         """Return a human-friendly representation of the datetime."""
@@ -110,14 +104,8 @@ def tree(ctx: click.Context, task_id: str | None) -> None:
 
     console = Console()
 
-    # Color mapping for states
-    state_colors = {
-        "pending": "yellow",
-        "in-progress": "blue",
-        "done": "green",
-        "blocked": "red",
-        "cancelled": "dim red",
-    }
+    # Use state colors from constants
+    state_colors = STATE_COLORS
 
     def colorize_tree_output(tree_str: str) -> Text:
         """Colorize the tree output based on task states."""
@@ -249,14 +237,8 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
     console = Console()
     state = task.compute_state(tasks)
 
-    # Color mapping for states
-    state_colors = {
-        "pending": "yellow",
-        "in-progress": "blue",
-        "done": "green",
-        "blocked": "red",
-        "cancelled": "dim red",
-    }
+    # Use state colors from constants
+    state_colors = STATE_COLORS
 
     # Main task info panel
     info_table = Table(show_header=False)

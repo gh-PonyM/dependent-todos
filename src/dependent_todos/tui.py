@@ -18,7 +18,7 @@ from textual.screen import ModalScreen
 
 from dependent_todos.config import get_config_path
 from dependent_todos.dependencies import get_ready_tasks, topological_sort
-from dependent_todos.models import Task
+from dependent_todos.models import STATE_COLORS, Task
 from dependent_todos.storage import load_tasks_from_file
 
 
@@ -40,14 +40,8 @@ class TaskTable(DataTable):
         if not self.tasks:
             return
 
-        # Color mapping for states
-        state_colors = {
-            "pending": "yellow",
-            "in-progress": "blue",
-            "done": "green",
-            "blocked": "red",
-            "cancelled": "dim red",
-        }
+        # Use state colors from constants
+        state_colors = STATE_COLORS
 
         # Filter tasks
         filtered_tasks = {}
@@ -147,14 +141,8 @@ class TaskDetails(Static):
         task = self.tasks[self.task_id]
         state = task.compute_state(self.tasks)
 
-        # Color mapping for states
-        state_colors = {
-            "pending": "yellow",
-            "in-progress": "blue",
-            "done": "green",
-            "blocked": "red",
-            "cancelled": "dim red",
-        }
+        # Use state colors from constants
+        state_colors = STATE_COLORS
 
         details = f"""[bold cyan]ID:[/bold cyan] {task.id}
 [bold cyan]Message:[/bold cyan] {task.message}
