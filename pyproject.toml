@@ -7,7 +7,13 @@ authors = [
     { name = "PonyM", email = "dev@lksch.ch" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pydantic>=2.0.0",
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "textual>=0.50.0",
+    "tomli-w>=1.0.0",
+]
 
 [project.scripts]
 dependent-todos = "dependent_todos:main"
