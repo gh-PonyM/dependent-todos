@@ -1,5 +1,6 @@
 """Configuration management for the dependent todos application."""
 
+import os
 from pathlib import Path
 
 
@@ -19,6 +20,11 @@ def get_config_path(config_override: str | None = None) -> Path:
     """
     if config_override:
         return Path(config_override).expanduser().resolve()
+
+    # Check environment variable
+    env_config = os.environ.get("TODOS_CONFIG")
+    if env_config:
+        return Path(env_config).expanduser().resolve()
 
     # Default local path
     return Path.cwd() / "todos.toml"
