@@ -14,6 +14,7 @@ from .utils import generate_unique_id
     "--config",
     "config_path",
     type=click.Path(),
+    envvar="TODOS_CONFIG",
     help="Path to todos configuration file",
 )
 @click.pass_context

@@ -12,7 +12,7 @@ from dependent_todos.tui import (
 
 
 @pytest.mark.asyncio
-async def test_app_starts():
+async def test_app_starts(temp_dir):
     """Test that the app starts without errors."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
@@ -20,7 +20,7 @@ async def test_app_starts():
         assert pilot.app.query_one("Header")
 
 
-def test_initial_screen_snapshot(snap_compare):
+def test_initial_screen_snapshot(temp_dir, snap_compare):
     """Test snapshot of the initial screen."""
 
     async def run_before(pilot):
@@ -30,7 +30,7 @@ def test_initial_screen_snapshot(snap_compare):
 
 
 @pytest.mark.asyncio
-async def test_refresh_key():
+async def test_refresh_key(temp_dir):
     """Test the refresh key functionality."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
@@ -43,7 +43,7 @@ async def test_refresh_key():
 
 
 @pytest.mark.asyncio
-async def test_ready_tasks_key():
+async def test_ready_tasks_key(temp_dir):
     """Test the ready tasks key shows notification."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
@@ -54,7 +54,7 @@ async def test_ready_tasks_key():
 
 
 @pytest.mark.asyncio
-async def test_navigation_and_focus():
+async def test_navigation_and_focus(temp_dir):
     """Test tab switching and focus navigation with up/down keys."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
@@ -147,7 +147,7 @@ async def test_navigation_and_focus():
 
 
 @pytest.mark.asyncio
-async def test_topological_order_key():
+async def test_topological_order_key(temp_dir):
     """Test the topological order key."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
