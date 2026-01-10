@@ -1,6 +1,7 @@
 """Command-line interface for dependent todos."""
 
 import click
+from datetime import datetime
 
 from .config import get_config_path
 from .models import Task
@@ -43,6 +44,7 @@ def list(ctx: click.Context) -> None:
     table = Table(title="Tasks")
     table.add_column("ID", style="cyan", no_wrap=True)
     table.add_column("State", style="magenta")
+    table.add_column("Created", style="green")
     table.add_column("Message", style="white")
 
     # Compute states for all tasks
@@ -59,16 +61,33 @@ def list(ctx: click.Context) -> None:
         "cancelled": "dim red",
     }
 
+    def human_friendly_date(dt: datetime) -> str:
+        """Return a human-friendly representation of the datetime."""
+        now = datetime.now()
+        diff = now - dt
+        if diff.days == 0:
+            if diff.seconds < 3600:
+                minutes = diff.seconds // 60
+                return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+            hours = diff.seconds // 3600
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        elif diff.days < 7:
+            return f"{diff.days} day{'s' if diff.days != 1 else ''} ago"
+        else:
+            return dt.strftime("%Y-%m-%d")
+
     for task_id, task in sorted(tasks.items()):
         state = task_states[task_id]
         state_text = Text(state, style=state_colors.get(state, "white"))
+
+        created_str = human_friendly_date(task.created)
 
         # Truncate message if too long
         message = task.message
         if len(message) > 50:
             message = message[:47] + "..."
 
-        table.add_row(task_id, state_text, message)
+        table.add_row(task_id, state_text, created_str, message)
 
     console.print(table)
 
