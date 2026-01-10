@@ -3,7 +3,7 @@
 from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import cast
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal, Grid
 from textual.widgets import (
     Button,
     DataTable,
@@ -12,6 +12,7 @@ from textual.widgets import (
     Input,
     Static,
     Tabs,
+    TextArea,
     Tree,
 )
 from textual.screen import ModalScreen
@@ -19,7 +20,8 @@ from textual.screen import ModalScreen
 from dependent_todos.config import get_config_path
 from dependent_todos.dependencies import get_ready_tasks, topological_sort
 from dependent_todos.models import STATE_COLORS, Task
-from dependent_todos.storage import load_tasks_from_file
+from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
+from dependent_todos.utils import generate_unique_id
 
 
 class FocusableTabs(Tabs):
@@ -267,12 +269,10 @@ class BaseModalScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         # with Grid(id="modal-dialog"):
-        with Vertical(id="modal-dialog"):
+        with Grid(classes="modal-dialog"):
             yield Static(self.TITLE, classes="title")
-            with Container(classes="modal-content"):
-                yield from self.get_content()
-            with Container():
-                yield from self.get_buttons()
+            yield from self.get_content()
+            yield from self.get_buttons()
 
     def get_content(self) -> ComposeResult:
         """Override to provide modal content."""
@@ -283,43 +283,60 @@ class BaseModalScreen(ModalScreen):
         yield Button("Ok", id="ok", classes="modal-button", variant="success")
         yield Button("Cancel", id="cancel", classes="modal-button")
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "ok":
+            self.on_ok_pressed()
+        elif event.button.id == "cancel":
+            self.dismiss()
+
+    def on_ok_pressed(self):
+        """Override to handle OK button press."""
+        pass
+
 
 class AddTaskModal(BaseModalScreen):
     """Modal for adding a new task."""
 
     TITLE = "Add a new task"
 
+    # TODO focus on textarea on pushing the screen
+
     def get_content(self) -> ComposeResult:
-        yield Input(placeholder="Task message", id="task-message")
+        yield Input("ID: ", id="task-id")
+        yield TextArea(placeholder="Task message", id="task-message")
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add":
-            message = self.query_one("#task-message", Input).value
-            if message.strip():
-                # For now, add without dependencies
-                from dependent_todos.utils import generate_unique_id
-                from dependent_todos.storage import save_tasks_to_file
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        message = event.text_area.text
+        app = cast(DependentTodosApp, self.app)
+        existing_ids = set(app.tasks.keys())
+        task_id = generate_unique_id(message, existing_ids)
+        # TODO: this fails, fix it
+        self.query_one("#task-id", Input).value(task_id)
 
-                app = cast(DependentTodosApp, self.app)
-                existing_ids = set(app.tasks.keys())
-                task_id = generate_unique_id(message, existing_ids)
-                task = Task(
-                    id=task_id,
-                    message=message,
-                    dependencies=[],
-                    status="pending",
-                    cancelled=False,
-                    started=None,
-                    completed=None,
-                )
-                app.tasks[task_id] = task
-                save_tasks_to_file(app.tasks, app.config_path)
-                app.action_refresh()
-                self.dismiss()
-            else:
-                self.notify("Task message cannot be empty")
-        elif event.button.id == "cancel":
-            self.dismiss()
+    def on_ok_pressed(self):
+        message = self.query_one("#task-message", TextArea).text
+
+        if not message.strip():
+            self.notify("Task message cannot be empty")
+            # For now, add without dependencies
+            return
+
+        app = cast(DependentTodosApp, self.app)
+        existing_ids = set(app.tasks.keys())
+        task_id = generate_unique_id(message, existing_ids)
+        task = Task(
+            id=task_id,
+            message=message,
+            dependencies=[],
+            status="pending",
+            cancelled=False,
+            started=None,
+            completed=None,
+        )
+        app.tasks[task_id] = task
+        save_tasks_to_file(app.tasks, app.config_path)
+        app.action_refresh()
+        self.dismiss()
 
 
 class DependentTodosApp(App):
