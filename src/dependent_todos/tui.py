@@ -66,7 +66,7 @@ class TaskTable(DataTable):
             state = task.compute_state(self.tasks)
             if self.filter_state == "all":
                 filtered_tasks[task_id] = task
-            elif self.filter_state == "ready":
+            elif self.filter_state == "todo":
                 if state == "pending":
                     filtered_tasks[task_id] = task
             elif self.filter_state == "done":
@@ -457,7 +457,7 @@ class DependentTodosApp(App):
 
         with Horizontal():
             with Container(id="main-content"):
-                yield FocusableTabs("All", "Ready", "Done", "Pending", id="filter-tabs")
+                yield FocusableTabs("All", "Todo", "Done", "Pending", id="filter-tabs")
                 yield TaskTable(
                     self.tasks, filter_state=self.current_filter, id="task-table"
                 )
@@ -541,7 +541,7 @@ class DependentTodosApp(App):
         """Switch to the next filter tab."""
         tabs = self.query_one("#filter-tabs", FocusableTabs)
         # Cycle through tabs using the tab index
-        tab_labels = ["all", "ready", "done", "pending"]
+        tab_labels = ["all", "todo", "done", "pending"]
         current_filter = self.current_filter
         if current_filter in tab_labels:
             current_index = tab_labels.index(current_filter)
@@ -556,7 +556,7 @@ class DependentTodosApp(App):
         """Switch to the previous filter tab."""
         tabs = self.query_one("#filter-tabs", FocusableTabs)
         # Cycle through tabs using the tab index
-        tab_labels = ["all", "ready", "done", "pending"]
+        tab_labels = ["all", "todo", "done", "pending"]
         current_filter = self.current_filter
         if current_filter in tab_labels:
             current_index = tab_labels.index(current_filter)
