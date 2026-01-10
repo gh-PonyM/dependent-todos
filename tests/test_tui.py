@@ -61,6 +61,8 @@ async def test_navigation_and_focus(temp_dir):
         # Add some tasks for table navigation
         from dependent_todos.models import Task
 
+        from datetime import datetime
+
         app.tasks = {
             "task1": Task(
                 id="task1",
@@ -80,11 +82,20 @@ async def test_navigation_and_focus(temp_dir):
                 started=None,
                 completed=None,
             ),
+            "task3": Task(
+                id="task3",
+                message="Task 3",
+                dependencies=[],
+                status="done",
+                cancelled=False,
+                started=datetime.now(),
+                completed=datetime.now(),
+            ),
         }
         # Refresh the table and details with new tasks
         table = cast(TaskTable, pilot.app.query_one("#task-table"))
         table.refresh_data(app.tasks)
-        assert table.row_count == 2
+        assert table.row_count == 3
         details_widget = cast(TaskDetails, pilot.app.query_one("#task-details"))
         details_widget.tasks = app.tasks
         details_widget.refresh()
@@ -92,24 +103,32 @@ async def test_navigation_and_focus(temp_dir):
         table = pilot.app.query_one("#task-table")
         app_instance = cast(DependentTodosApp, pilot.app)
 
+        # Now test focus switching
+        # Initially, tabs are focused
+        assert pilot.app.focused == tabs
+
         # Initially on "All" tab
         assert tabs.active_tab.label.plain == "All"
         assert app_instance.current_filter == "all"
+        assert cast(TaskTable, table).row_count == 3  # All tasks displayed
 
         # Press Tab to next tab
         await pilot.press("tab")
         assert tabs.active_tab.label.plain == "Ready"
         assert app_instance.current_filter == "ready"
+        assert table.row_count == 2  # task1 and task2 are ready (pending state)
 
         # Press Tab again
         await pilot.press("tab")
         assert tabs.active_tab.label.plain == "Done"
         assert app_instance.current_filter == "done"
+        assert table.row_count == 1  # task3 is done
 
         # Press Tab again
         await pilot.press("tab")
         assert tabs.active_tab.label.plain == "Pending"
         assert app_instance.current_filter == "pending"
+        assert table.row_count == 2  # task1 and task2 are pending/blocked/in-progress
 
         # Press Tab again to wrap around
         await pilot.press("tab")
