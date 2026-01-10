@@ -224,6 +224,7 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
 
     if not task_id:
         from .dependencies import select_task_interactive
+
         task_id = select_task_interactive(tasks)
         if not task_id:
             click.echo("No task selected.", err=True)
@@ -395,7 +396,15 @@ def add(ctx: click.Context, interactive: bool) -> None:
                 return
 
     # Create task
-    task = Task(id=task_id, message=message, dependencies=dependencies, status="pending", cancelled=False, started=None, completed=None)
+    task = Task(
+        id=task_id,
+        message=message,
+        dependencies=dependencies,
+        status="pending",
+        cancelled=False,
+        started=None,
+        completed=None,
+    )
 
     # Save
     tasks[task_id] = task
@@ -424,6 +433,7 @@ def modify(ctx: click.Context, task_id: str | None, interactive: bool) -> None:
 
     if not task_id:
         from .dependencies import select_task_interactive
+
         task_id = select_task_interactive(tasks)
         if not task_id:
             click.echo("No task selected.", err=True)
@@ -498,6 +508,7 @@ def done(ctx: click.Context, task_id: str | None) -> None:
 
     if not task_id:
         from .dependencies import select_task_interactive
+
         task_id = select_task_interactive(tasks)
         if not task_id:
             click.echo("No task selected.", err=True)
@@ -565,6 +576,7 @@ def remove(ctx: click.Context, task_id: str | None) -> None:
 
     if not task_id:
         from .dependencies import select_task_interactive
+
         task_id = select_task_interactive(tasks)
         if not task_id:
             click.echo("No task selected.", err=True)

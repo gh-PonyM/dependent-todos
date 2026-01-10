@@ -170,10 +170,7 @@ def select_dependencies_interactive(
             print(f"Already selected: {', '.join(selected_deps)}")
 
         terminal_menu = TerminalMenu(
-            options,
-            title="Available tasks:",
-            show_search_hint=True,
-            multi_select=True
+            options, title="Available tasks:", show_search_hint=True, multi_select=True
         )
         menu_entry_index = terminal_menu.show()
 

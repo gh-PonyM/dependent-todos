@@ -22,6 +22,14 @@ from dependent_todos.models import STATE_COLORS, Task
 from dependent_todos.storage import load_tasks_from_file
 
 
+class NonFocusableTabs(Tabs):
+    """Tabs widget that cannot be focused."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.can_focus = False
+
+
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
@@ -29,6 +37,7 @@ class TaskTable(DataTable):
         super().__init__(**kwargs)
         self.tasks = tasks
         self.filter_state = filter_state
+        self.can_focus = False
         self.add_columns("ID", "State", "Message")
         self._populate_table()
 
@@ -203,7 +212,15 @@ class AddTaskModal(ModalScreen):
                 app = cast(DependentTodosApp, self.app)
                 existing_ids = set(app.tasks.keys())
                 task_id = generate_unique_id(message, existing_ids)
-                task = Task(id=task_id, message=message, dependencies=[], status="pending", cancelled=False, started=None, completed=None)
+                task = Task(
+                    id=task_id,
+                    message=message,
+                    dependencies=[],
+                    status="pending",
+                    cancelled=False,
+                    started=None,
+                    completed=None,
+                )
                 app.tasks[task_id] = task
                 save_tasks_to_file(app.tasks, app.config_path)
                 app.action_refresh()
@@ -241,6 +258,7 @@ class UpdateTaskModal(ModalScreen):
                 if task:
                     task.message = message
                     from dependent_todos.storage import save_tasks_to_file
+
                     save_tasks_to_file(app.tasks, app.config_path)
                     app.action_refresh()
                 self.dismiss()
@@ -271,6 +289,7 @@ class DeleteTaskModal(ModalScreen):
             if self.task_id in app.tasks:
                 del app.tasks[self.task_id]
                 from dependent_todos.storage import save_tasks_to_file
+
                 save_tasks_to_file(app.tasks, app.config_path)
                 app.action_refresh()
                 app.current_task_id = None
@@ -289,6 +308,8 @@ class DependentTodosApp(App):
         ("o", "topological_order", "Show order"),
         ("u", "update_task", "Update selected task"),
         ("d", "delete_task", "Delete selected task"),
+        ("tab", "next_tab", "Next tab"),
+        ("shift+tab", "previous_tab", "Previous tab"),
     ]
 
     CSS = """
@@ -343,8 +364,12 @@ class DependentTodosApp(App):
                 pass  # Buttons replaced with key bindings
 
             with Container(id="main-content"):
-                yield Tabs("All", "Ready", "Done", "Pending", id="filter-tabs")
-                yield TaskTable(self.tasks, filter_state=self.current_filter, id="task-table")
+                yield NonFocusableTabs(
+                    "All", "Ready", "Done", "Pending", id="filter-tabs"
+                )
+                yield TaskTable(
+                    self.tasks, filter_state=self.current_filter, id="task-table"
+                )
                 yield TaskDetails(id="task-details")
 
         yield Footer()
@@ -361,10 +386,7 @@ class DependentTodosApp(App):
 
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         """Handle filter tab change."""
-        self.current_filter = str(event.tab.label.plain).lower()
-        table = self.query_one("#task-table", TaskTable)
-        table.filter_state = self.current_filter
-        table._populate_table()
+        self._update_filter_from_tab()
 
     def action_add_task(self):
         """Add a new task using modal."""
@@ -418,6 +440,41 @@ class DependentTodosApp(App):
                 self.notify("No active tasks to order")
         except ValueError as e:
             self.notify(f"Error: {e}")
+
+    def action_next_tab(self):
+        """Switch to the next filter tab."""
+        tabs = self.query_one("#filter-tabs", NonFocusableTabs)
+        current_tab = tabs.active_tab
+        current_index = tabs._tabs.index(current_tab)
+        next_index = (current_index + 1) % len(tabs._tabs)
+        tabs.active = tabs._tabs[next_index].id
+        self._update_filter_from_tab()
+
+    def action_previous_tab(self):
+        """Switch to the previous filter tab."""
+        tabs = self.query_one("#filter-tabs", NonFocusableTabs)
+        current_tab = tabs.active_tab
+        current_index = tabs._tabs.index(current_tab)
+        prev_index = (current_index - 1) % len(tabs._tabs)
+        tabs.active = tabs._tabs[prev_index].id
+        self._update_filter_from_tab()
+
+    def _update_filter_from_tab(self):
+        """Update the current filter and table based on active tab."""
+        tabs = self.query_one("#filter-tabs", NonFocusableTabs)
+        self.current_filter = str(tabs.active_tab.label.plain).lower()
+        table = self.query_one("#task-table", TaskTable)
+        table.filter_state = self.current_filter
+        table._populate_table()
+
+    def on_key(self, event):
+        """Handle key presses."""
+        if event.key == "tab":
+            event.prevent_default()
+            self.action_next_tab()
+        elif event.key == "shift+tab":
+            event.prevent_default()
+            self.action_previous_tab()
 
 
 def run_tui():

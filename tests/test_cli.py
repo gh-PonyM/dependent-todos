@@ -263,11 +263,19 @@ def test_tui_command_exists(runner, temp_config):
 def test_add_task_with_circular_dependency_detection(runner, temp_config):
     """Test that circular dependencies are detected in interactive mode."""
     # Add two tasks
-    runner.invoke(cli, ["--config", str(temp_config), "add", "--no-interactive"], input="Task A\n\n")
+    runner.invoke(
+        cli,
+        ["--config", str(temp_config), "add", "--no-interactive"],
+        input="Task A\n\n",
+    )
     tasks = load_tasks_from_file(temp_config)
     task_a_id = list(tasks.keys())[0]
 
-    runner.invoke(cli, ["--config", str(temp_config), "add", "--no-interactive"], input="Task B\n\n")
+    runner.invoke(
+        cli,
+        ["--config", str(temp_config), "add", "--no-interactive"],
+        input="Task B\n\n",
+    )
 
     # Try to add a task that depends on itself (simulate circular)
     # This is hard to test with the interactive menu, so we'll test the underlying function
