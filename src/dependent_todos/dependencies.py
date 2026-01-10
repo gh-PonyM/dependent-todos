@@ -204,3 +204,43 @@ def select_dependencies_interactive(
             break
 
     return selected_deps
+
+
+def select_task_interactive(all_tasks: dict[str, Task]) -> str | None:
+    """Interactively select a single task using fuzzy search.
+
+    Args:
+        all_tasks: Dictionary of all available tasks
+
+    Returns:
+        Selected task ID, or None if cancelled
+    """
+    if not all_tasks:
+        return None
+
+    # Create menu options with task ID and message
+    options = []
+    task_ids = []
+    for task_id in sorted(all_tasks.keys()):
+        task = all_tasks[task_id]
+        state = task.compute_state(all_tasks)
+        option = f"{task_id}: {task.message} [{state}]"
+        options.append(option)
+        task_ids.append(task_id)
+
+    # Add "Cancel" option
+    options.append("Cancel selection")
+    task_ids.append(None)
+
+    terminal_menu = TerminalMenu(
+        options,
+        title="Select a task:",
+        show_search_hint=True,
+    )
+    menu_entry_index = terminal_menu.show()
+
+    if menu_entry_index is None:  # User pressed Ctrl+C or similar
+        return None
+
+    selected_index = int(menu_entry_index)
+    return task_ids[selected_index]

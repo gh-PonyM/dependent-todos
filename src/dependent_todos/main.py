@@ -202,10 +202,10 @@ def order(ctx: click.Context) -> None:
 
 
 @cli.command()
-@click.argument("task_id")
+@click.argument("task_id", required=False)
 @click.option("--details", is_flag=True, help="Show detailed dependency panels.")
 @click.pass_context
-def show(ctx: click.Context, task_id: str, details: bool) -> None:
+def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
     """Show detailed information about a specific task."""
     from rich.console import Console
     from rich.panel import Panel
@@ -214,6 +214,13 @@ def show(ctx: click.Context, task_id: str, details: bool) -> None:
 
     config_path = ctx.obj["config_path"]
     tasks = load_tasks_from_file(config_path)
+
+    if not task_id:
+        from .dependencies import select_task_interactive
+        task_id = select_task_interactive(tasks)
+        if not task_id:
+            click.echo("No task selected.", err=True)
+            return
 
     task = tasks.get(task_id)
     if not task:
@@ -397,12 +404,19 @@ def add(ctx: click.Context, interactive: bool) -> None:
 
 
 @cli.command()
-@click.argument("task_id")
+@click.argument("task_id", required=False)
 @click.pass_context
-def done(ctx: click.Context, task_id: str) -> None:
+def done(ctx: click.Context, task_id: str | None) -> None:
     """Mark a task as completed."""
     config_path = ctx.obj["config_path"]
     tasks = load_tasks_from_file(config_path)
+
+    if not task_id:
+        from .dependencies import select_task_interactive
+        task_id = select_task_interactive(tasks)
+        if not task_id:
+            click.echo("No task selected.", err=True)
+            return
 
     task = tasks.get(task_id)
     if not task:
@@ -457,12 +471,19 @@ def done(ctx: click.Context, task_id: str) -> None:
 
 
 @cli.command()
-@click.argument("task_id")
+@click.argument("task_id", required=False)
 @click.pass_context
-def remove(ctx: click.Context, task_id: str) -> None:
+def remove(ctx: click.Context, task_id: str | None) -> None:
     """Remove a task."""
     config_path = ctx.obj["config_path"]
     tasks = load_tasks_from_file(config_path)
+
+    if not task_id:
+        from .dependencies import select_task_interactive
+        task_id = select_task_interactive(tasks)
+        if not task_id:
+            click.echo("No task selected.", err=True)
+            return
 
     task = tasks.get(task_id)
     if not task:
