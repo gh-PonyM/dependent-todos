@@ -7,12 +7,14 @@ from textual.widgets import TextArea
 from dependent_todos.tui import (
     AddTaskModal,
     DependentTodosApp,
+    DependencyTree,
     FocusableTabs,
     TaskTable,
     TaskDetails,
     DeleteTaskModal,
     UpdateTaskModal,
 )
+from textual.containers import Container
 
 
 @pytest.mark.asyncio
@@ -429,3 +431,79 @@ async def test_circular_dependency_detection(temp_dir):
         # For now, just test that the modal opens correctly
         # Full circular dependency testing would require more complex interaction simulation
         await pilot.press("escape")  # Cancel
+
+
+@pytest.mark.asyncio
+async def test_toggle_tree_sidebar(temp_dir):
+    """Test toggling the dependency tree sidebar with realistic task scenario."""
+    app = DependentTodosApp()
+    async with app.run_test() as pilot:
+        # Add tasks with dependencies
+        from dependent_todos.models import Task
+
+        app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Root Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task2": Task(
+                id="task2",
+                message="Task 2 depends on Task 1",
+                dependencies=["task1"],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+            "task3": Task(
+                id="task3",
+                message="Task 3 depends on Task 2",
+                dependencies=["task2"],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+
+        # Refresh the table
+        table = cast(TaskTable, pilot.app.query_one("#task-table"))
+        table.refresh_data(app.tasks)
+
+        # Select task2
+        app.current_task_id = "task2"
+        details = cast(TaskDetails, pilot.app.query_one("#task-details"))
+        details.update_task("task2", app.tasks)
+
+        # Initially, sidebar should be hidden
+        sidebar = pilot.app.query_one("#sidebar", Container)
+        assert "hidden" in sidebar.classes
+
+        # Press 't' to toggle tree - should show since task selected
+        await pilot.press("t")
+        assert "hidden" not in sidebar.classes  # Sidebar visible
+        tree = pilot.app.query_one("#dep-tree", DependencyTree)
+        # Tree should have nodes (can't easily check content, but refresh was called)
+
+        # Select different task
+        app.current_task_id = "task3"
+        details.update_task("task3", app.tasks)
+        # Tree should update (on_data_table_row_selected would trigger, but here we simulate)
+        tree.root_task_id = "task3"
+        tree._build_tree()
+        tree.refresh()
+
+        # Toggle off
+        await pilot.press("t")
+        assert "hidden" in sidebar.classes  # Sidebar hidden
+        # Tree should be cleared
+
+        # Try to toggle without task selected
+        app.current_task_id = None
+        await pilot.press("t")
+        assert "hidden" in sidebar.classes  # Still hidden, no task selected

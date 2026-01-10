@@ -110,6 +110,9 @@ class DependencyTree(Tree):
 
     def _build_tree(self):
         """Build the dependency tree."""
+        # Clear existing tree
+        self.root.remove_children()
+
         if self.root_task_id and self.root_task_id in self.tasks:
             # Build tree starting from specific task
             self._add_task_node(self.root, self.root_task_id)
@@ -145,6 +148,9 @@ class DependencyTree(Tree):
             self._add_task_node(node, dep_id)
 
         node.allow_expand = bool(task.dependencies)
+        # Expand the node if it has dependencies
+        if task.dependencies:
+            node.expand()
 
 
 class TaskDetails(Static):
@@ -676,6 +682,9 @@ class DependentTodosApp(App):
         else:
             # Hide sidebar
             sidebar.add_class("hidden")
+            tree = self.query_one("#dep-tree", DependencyTree)
+            tree.root.remove_children()
+            tree.refresh()
             self.notify("Dependency tree hidden")
 
     def action_next_tab(self) -> None:
