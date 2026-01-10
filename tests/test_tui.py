@@ -2,12 +2,15 @@
 
 import pytest
 from typing import cast
+from textual.widgets import TextArea
 
 from dependent_todos.tui import (
     DependentTodosApp,
     FocusableTabs,
     TaskTable,
     TaskDetails,
+    DeleteTaskModal,
+    UpdateTaskModal,
 )
 
 
@@ -163,6 +166,41 @@ async def test_navigation_and_focus(temp_dir):
         assert table.cursor_row == 0
         assert "task1" in str(details.render())
         assert app_instance.current_task_id == "task1"
+
+        # Test modal interactions: delete modal abort
+        # Press 'd' to open delete modal
+        await pilot.press("d")
+        # Modal should be open
+        assert isinstance(pilot.app.screen, DeleteTaskModal)
+        # Abort with escape
+        await pilot.press("escape")
+        # Should be back to main screen
+        assert not isinstance(pilot.app.screen, DeleteTaskModal)
+
+        # Test edit modal: open, edit, save
+        # Press 'e' to open edit modal
+        await pilot.press("e")
+        # Modal should be open
+        assert isinstance(pilot.app.screen, UpdateTaskModal)
+        # TextArea should be focused and have current message
+        textarea = cast(TextArea, pilot.app.screen.query_one("TextArea"))
+        assert textarea.text == "Task 1"  # current message of task1
+        # Edit the message
+        textarea.text = "Updated Task 1"
+        # Click the ok button to save
+        await pilot.click("#ok")
+        # Should be back to main screen
+        assert not isinstance(pilot.app.screen, UpdateTaskModal)
+        # Check table has updated message
+        cast(TaskTable, table).refresh_data(app.tasks)  # ensure refreshed
+        row_keys = list(cast(TaskTable, table).rows.keys())
+        task1_row_key = next(
+            row_key
+            for row_key in row_keys
+            if cast(TaskTable, table).get_row(row_key)[0] == "task1"
+        )
+        task1_row = cast(TaskTable, table).get_row(task1_row_key)
+        assert task1_row[2] == "Updated Task 1"
 
 
 @pytest.mark.asyncio

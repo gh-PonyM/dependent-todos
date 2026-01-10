@@ -143,15 +143,34 @@ class TaskDetails(Static):
         super().__init__(**kwargs)
         self.task_id = task_id
         self.tasks = {}
+        self.showing_order = False
+        self.order_list: list[str] = []
 
     def update_task(self, task_id: str, tasks: dict[str, Task]):
         """Update the displayed task."""
         self.task_id = task_id
         self.tasks = tasks
+        self.showing_order = False
+        self.refresh()
+
+    def show_order(self, order_list: list[str]):
+        """Show the execution order."""
+        self.showing_order = True
+        self.order_list = order_list
         self.refresh()
 
     def render(self):
         """Render the task details."""
+        if self.showing_order:
+            if self.order_list:
+                order_text = "\n".join(
+                    f"{i + 1}. {tid}: {self.tasks[tid].message}"
+                    for i, tid in enumerate(self.order_list)
+                )
+                return f"[bold cyan]Execution Order:[/bold cyan]\n{order_text}"
+            else:
+                return "No active tasks to order"
+
         if not self.task_id or self.task_id not in self.tasks:
             return "Select a task to view details"
 
@@ -321,14 +340,14 @@ class UpdateTaskModal(BaseModalScreen):
         if not message.strip():
             self.notify("Task message cannot be empty")
             return
-        
+
         app = cast(DependentTodosApp, self.app)
         task = app.tasks.get(self.task_id)
         if not task:
             self.notify(f"Error: Task '{self.task_id}' not found")
             self.dismiss()
             return
-        
+
         task.message = message
         app._save_and_refresh()
         self.dismiss()
@@ -380,7 +399,7 @@ class AddTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         existing_ids = set(app.tasks.keys())
         task_id = generate_unique_id(message, existing_ids)
-        inp = self.query_one("#task-id", Input)
+        inp = self.query_one(".task-id", Input)
         inp.value = task_id
 
     def on_ok_pressed(self) -> None:
@@ -415,7 +434,7 @@ class DependentTodosApp(App):
         ("a", "add_task", "Add task"),
         ("r", "refresh", "Refresh"),
         ("y", "ready_tasks", "Show ready"),
-        ("o", "topological_order", "Show order"),
+        ("o", "show_order", "Show order"),
         ("e", "update_task", "Update selected task"),
         ("d", "delete_task", "Delete selected task"),
         ("tab", "next_tab", "Next tab"),
@@ -513,14 +532,8 @@ class DependentTodosApp(App):
         """Show topological execution order."""
         try:
             ordered = topological_sort(self.tasks)
-            if ordered:
-                order_list = "\n".join(
-                    f"{i + 1}. {tid}: {self.tasks[tid].message}"
-                    for i, tid in enumerate(ordered)
-                )
-                self.notify(f"Execution order:\n{order_list}")
-            else:
-                self.notify("No active tasks to order")
+            details = self.query_one("#task-details", TaskDetails)
+            details.show_order(ordered)
         except ValueError as e:
             self.notify(f"Error: {e}")
 
