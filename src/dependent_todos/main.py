@@ -405,6 +405,90 @@ def add(ctx: click.Context, interactive: bool) -> None:
 
 @cli.command()
 @click.argument("task_id", required=False)
+@click.option(
+    "--interactive/--no-interactive",
+    default=True,
+    help="Use interactive dependency selection",
+)
+@click.pass_context
+def modify(ctx: click.Context, task_id: str | None, interactive: bool) -> None:
+    """Modify an existing task."""
+    from .dependencies import (
+        detect_circular_dependencies,
+        select_dependencies_interactive,
+    )
+
+    config_path = ctx.obj["config_path"]
+    tasks = load_tasks_from_file(config_path)
+
+    if not task_id:
+        from .dependencies import select_task_interactive
+        task_id = select_task_interactive(tasks)
+        if not task_id:
+            click.echo("No task selected.", err=True)
+            return
+
+    task = tasks.get(task_id)
+    if not task:
+        click.echo(f"Task '{task_id}' not found.", err=True)
+        return
+
+    # Get new task message
+    message = click.prompt("Task message", default=task.message)
+
+    # Get new dependencies
+    click.echo(f"Current dependencies: {', '.join(task.dependencies) or 'none'}")
+    dependencies = []
+    if tasks:
+        if interactive:
+            # Use interactive fuzzy search
+            dependencies = select_dependencies_interactive(
+                tasks, exclude_task_id=task_id
+            )
+        else:
+            # Fallback to manual input
+            click.echo("Available tasks for dependencies:")
+            for tid, t in sorted(tasks.items()):
+                if tid != task_id:
+                    click.echo(f"  {tid}: {t.message}")
+
+            dep_input = click.prompt(
+                "Dependencies (comma-separated task IDs, or empty for none)", default=""
+            )
+            if dep_input.strip():
+                dep_ids = [d.strip() for d in dep_input.split(",") if d.strip()]
+
+                # Validate dependencies exist
+                invalid_deps = [d for d in dep_ids if d not in tasks or d == task_id]
+                if invalid_deps:
+                    click.echo(
+                        f"Invalid dependencies: {', '.join(invalid_deps)}", err=True
+                    )
+                    return
+
+                dependencies = dep_ids
+
+        # Check for circular dependencies
+        if dependencies:
+            circular = detect_circular_dependencies(task_id, dependencies, tasks)
+            if circular:
+                click.echo(
+                    f"Circular dependency detected involving: {', '.join(circular)}",
+                    err=True,
+                )
+                return
+
+    # Update task
+    task.message = message
+    task.dependencies = dependencies
+
+    # Save
+    save_tasks_to_file(tasks, config_path)
+    click.echo(f"Task '{task_id}' modified successfully!")
+
+
+@cli.command()
+@click.argument("task_id", required=False)
 @click.pass_context
 def done(ctx: click.Context, task_id: str | None) -> None:
     """Mark a task as completed."""
