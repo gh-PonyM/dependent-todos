@@ -294,3 +294,7 @@ def run_tui():
     """Run the Textual TUI application."""
     app = DependentTodosApp()
     app.run()
+
+
+if __name__ == "__main__":
+    run_tui()
