@@ -7,6 +7,7 @@ from textual.containers import Container, Horizontal
 from textual.widgets import (
     Button,
     DataTable,
+    Footer,
     Header,
     Input,
     Static,
@@ -275,6 +276,15 @@ class DeleteTaskModal(ModalScreen):
 class DependentTodosApp(App):
     """Main Textual application for dependent todos."""
 
+    BINDINGS = [
+        ("a", "add_task", "Add task"),
+        ("r", "refresh", "Refresh"),
+        ("y", "ready_tasks", "Show ready"),
+        ("o", "topological_order", "Show order"),
+        ("u", "update_task", "Update selected task"),
+        ("d", "delete_task", "Delete selected task"),
+    ]
+
     CSS = """
     Screen {
         layout: horizontal;
@@ -315,6 +325,7 @@ class DependentTodosApp(App):
         self.config_path = get_config_path()
         self.tasks = load_tasks_from_file(self.config_path)
         self.current_task_id = None
+        self.footer = f"Config: {self.config_path}"
 
     def compose(self) -> ComposeResult:
         """Compose the UI."""
@@ -322,27 +333,13 @@ class DependentTodosApp(App):
 
         with Horizontal():
             with Container(id="sidebar"):
-                yield Button("Add Task", id="add-task")
-                yield Button("Refresh", id="refresh")
-                yield Button("Ready Tasks", id="ready-tasks")
-                yield Button("Topological Order", id="topological-order")
+                pass  # Buttons replaced with key bindings
 
             with Container(id="main-content"):
                 yield TaskTable(self.tasks, id="task-table")
                 yield TaskDetails(id="task-details")
 
-        yield Static(f"Config: {self.config_path}", id="footer")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        if event.button.id == "add-task":
-            self.action_add_task()
-        elif event.button.id == "refresh":
-            self.action_refresh()
-        elif event.button.id == "ready-tasks":
-            self.action_show_ready()
-        elif event.button.id == "topological-order":
-            self.action_show_order()
+        yield Footer()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle task selection in the table."""

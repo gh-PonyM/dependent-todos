@@ -25,12 +25,12 @@ def test_initial_screen_snapshot(snap_compare):
 
 
 @pytest.mark.asyncio
-async def test_refresh_button():
-    """Test the refresh button functionality."""
+async def test_refresh_key():
+    """Test the refresh key functionality."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
-        # Click refresh button
-        await pilot.click("#refresh")
+        # Press refresh key
+        await pilot.press("r")
 
         # Should still have the table
         table = pilot.app.query_one("#task-table")
@@ -38,22 +38,22 @@ async def test_refresh_button():
 
 
 @pytest.mark.asyncio
-async def test_ready_tasks_button():
-    """Test the ready tasks button shows notification."""
+async def test_ready_tasks_key():
+    """Test the ready tasks key shows notification."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
-        # Click ready tasks button
-        await pilot.click("#ready-tasks")
+        # Press ready tasks key
+        await pilot.press("y")
 
         # Should show a notification (we can't easily test the content without mocking)
 
 
 @pytest.mark.asyncio
-async def test_topological_order_button():
-    """Test the topological order button."""
+async def test_topological_order_key():
+    """Test the topological order key."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
-        # Click topological order button
-        await pilot.click("#topological-order")
+        # Press topological order key
+        await pilot.press("o")
 
         # Should show a notification
