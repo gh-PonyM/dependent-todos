@@ -151,12 +151,10 @@ def tree(ctx: click.Context, task_id: str | None) -> None:
             # Handle case where there are cycles - just show all tasks
             root_tasks = sorted(tasks.keys())
 
-        for i, root_id in enumerate(root_tasks):
+        for root_id in root_tasks:
             tree_str = get_dependency_tree(root_id, tasks)
             colored_tree = colorize_tree_output(tree_str)
             console.print(colored_tree)
-            if i < len(root_tasks) - 1:
-                console.print()  # Empty line between trees
 
 
 @cli.command()

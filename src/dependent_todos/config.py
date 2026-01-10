@@ -10,7 +10,7 @@ def get_config_path(config_override: str | None = None) -> Path:
     Priority order:
     1. --config CLI flag (highest priority)
     2. TODOS_CONFIG environment variable
-    3. Default XDG directory path
+    3. Default local path in current working directory
 
     Args:
         config_override: Explicit config path from CLI flag
@@ -25,10 +25,8 @@ def get_config_path(config_override: str | None = None) -> Path:
     if env_config:
         return Path(env_config).expanduser().resolve()
 
-    # Default XDG path
-    xdg_config_home = os.environ.get("XDG_CONFIG_HOME", "~/.config")
-    config_dir = Path(xdg_config_home).expanduser() / "todos"
-    return config_dir / ".todos.toml"
+    # Default local path
+    return Path.cwd() / "todos.toml"
 
 
 def ensure_config_directory(config_path: Path) -> None:
