@@ -48,12 +48,15 @@ BaseModalScreen {
     border: thick $background 80%;
     background: $surface;
   }
-  #task-id {
+  .task-id {
     color: magenta;
     column-span: 3;
     row-span: $title_height;
   }
-  #task-message {
+  Static.task-id {
+    margin-top: 1;
+  }
+  .task-message, .confirmation {
     column-span: 4;
     row-span: $content_height;
   }
@@ -62,10 +65,22 @@ BaseModalScreen {
     row-span: $title_height;
     margin-top: 1;
     margin-left: 1;
+    color: yellow;
   }
   .modal-button {
     column-span: 2;
     row-span: $footer_height;
     width: 1fr;
+  }
+  .confirmation {
+     row-span: $content_height;
+     margin-left: 1;
+     text-style: bold;
+  }
+}
+
+DeleteTaskModal {
+  .title {
+    column-span: 4;
   }
 }

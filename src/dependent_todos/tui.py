@@ -306,13 +306,13 @@ class UpdateTaskModal(BaseModalScreen):
             self.dismiss()
             return
         yield Static(f"Task ID: {self.task_id}", classes="task-id")
-        yield Input(value=task.message, id="task-message")
+        yield TextArea(task.message, classes="task-message")
 
     def on_mount(self) -> None:
-        self.query_one("#task-message", Input).focus()
+        self.query_one(".task-message", TextArea).focus()
 
     def on_ok_pressed(self):
-        message = self.query_one("#task-message", Input).value
+        message = self.query_one(".task-message", TextArea).text
         if message.strip():
             app = cast(DependentTodosApp, self.app)
             task = app.tasks.get(self.task_id)
@@ -365,11 +365,11 @@ class AddTaskModal(BaseModalScreen):
     TITLE = "Add a new task"
 
     def get_content(self) -> ComposeResult:
-        yield Input("", id="task-id", placeholder="Task ID", disabled=True)
-        yield TextArea(placeholder="Task message", id="task-message")
+        yield Input("", classes="task-id", placeholder="Task ID", disabled=True)
+        yield TextArea(placeholder="Task message", classes="task-message")
 
     def on_mount(self) -> None:
-        self.query_one("#task-message", TextArea).focus()
+        self.query_one(".task-message", TextArea).focus()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         message = event.text_area.text
@@ -380,7 +380,7 @@ class AddTaskModal(BaseModalScreen):
         inp.value = task_id
 
     def on_ok_pressed(self):
-        message = self.query_one("#task-message", TextArea).text
+        message = self.query_one(".task-message", TextArea).text
 
         if not message.strip():
             self.notify("Task message cannot be empty")
@@ -434,9 +434,6 @@ class DependentTodosApp(App):
         yield Header()
 
         with Horizontal():
-            with Container(id="sidebar"):
-                pass  # Buttons replaced with key bindings
-
             with Container(id="main-content"):
                 yield FocusableTabs("All", "Ready", "Done", "Pending", id="filter-tabs")
                 yield TaskTable(
