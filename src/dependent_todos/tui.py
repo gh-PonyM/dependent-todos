@@ -29,6 +29,9 @@ MAX_MESSAGE_DISPLAY_LENGTH = 50
 MESSAGE_TRUNCATE_LENGTH = 47
 TRUNCATION_SUFFIX = "..."
 
+# Tab filter states (must match tab labels in lowercase)
+TAB_FILTERS = ("all", "todo", "done", "pending")
+
 
 class FocusableTabs(Tabs):
     """Tabs widget that can be focused."""
@@ -205,9 +208,9 @@ class TaskDetails(Static):
             details += "  None\n"
 
         details += "\n[bold red]Blocks:[/bold red]\n"
-        dependents = [
+        dependents = tuple(
             tid for tid, t in self.tasks.items() if self.task_id in t.dependencies
-        ]
+        )
         if dependents:
             for dep_id in dependents:
                 dep_task = self.tasks.get(dep_id)
@@ -287,7 +290,7 @@ class BaseModalScreen(ModalScreen):
 
     def action_next_input(self) -> None:
         """Focus the next input field."""
-        focusables = list(self.query("Input, TextArea").nodes)
+        focusables = tuple(self.query("Input, TextArea").nodes)
         if not focusables:
             self.notify("No inputs to cycle")
             return
@@ -301,7 +304,7 @@ class BaseModalScreen(ModalScreen):
 
     def action_prev_input(self) -> None:
         """Focus the previous input field."""
-        focusables = list(self.query("Input, TextArea").nodes)
+        focusables = tuple(self.query("Input, TextArea").nodes)
         if focusables:
             current = self.focused
             if current in focusables:
@@ -541,11 +544,10 @@ class DependentTodosApp(App):
         """Switch to the next filter tab."""
         tabs = self.query_one("#filter-tabs", FocusableTabs)
         # Cycle through tabs using the tab index
-        tab_labels = ["all", "todo", "done", "pending"]
         current_filter = self.current_filter
-        if current_filter in tab_labels:
-            current_index = tab_labels.index(current_filter)
-            next_index = (current_index + 1) % len(tab_labels)
+        if current_filter in TAB_FILTERS:
+            current_index = TAB_FILTERS.index(current_filter)
+            next_index = (current_index + 1) % len(TAB_FILTERS)
             # Query all tab widgets and get their IDs
             all_tabs = list(tabs.query("Tab"))
             if next_index < len(all_tabs):
@@ -556,11 +558,10 @@ class DependentTodosApp(App):
         """Switch to the previous filter tab."""
         tabs = self.query_one("#filter-tabs", FocusableTabs)
         # Cycle through tabs using the tab index
-        tab_labels = ["all", "todo", "done", "pending"]
         current_filter = self.current_filter
-        if current_filter in tab_labels:
-            current_index = tab_labels.index(current_filter)
-            prev_index = (current_index - 1) % len(tab_labels)
+        if current_filter in TAB_FILTERS:
+            current_index = TAB_FILTERS.index(current_filter)
+            prev_index = (current_index - 1) % len(TAB_FILTERS)
             # Query all tab widgets and get their IDs
             all_tabs = list(tabs.query("Tab"))
             if prev_index < len(all_tabs):
@@ -569,7 +570,7 @@ class DependentTodosApp(App):
 
     def action_focus_next(self) -> None:
         """Switch focus to the next widget."""
-        focusables = [self.query_one("#filter-tabs"), self.query_one("#task-table")]
+        focusables = (self.query_one("#filter-tabs"), self.query_one("#task-table"))
         current = self.focused
         if current in focusables:
             index = focusables.index(current)
@@ -580,7 +581,7 @@ class DependentTodosApp(App):
 
     def action_focus_previous(self) -> None:
         """Switch focus to the previous widget."""
-        focusables = [self.query_one("#filter-tabs"), self.query_one("#task-table")]
+        focusables = (self.query_one("#filter-tabs"), self.query_one("#task-table"))
         current = self.focused
         if current in focusables:
             index = focusables.index(current)
