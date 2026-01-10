@@ -1,6 +1,8 @@
 """Dependency management utilities for tasks."""
 
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List
+
+from simple_term_menu import TerminalMenu
 
 from .models import Task
 
@@ -163,3 +165,82 @@ def get_dependency_tree(
         result += get_dependency_tree(dep_id, tasks, new_prefix, is_last_dep)
 
     return result
+
+
+def select_dependencies_interactive(
+    all_tasks: Dict[str, Task], exclude_task_id: str | None = None
+) -> List[str]:
+    """Interactively select dependencies using fuzzy search.
+
+    Args:
+        all_tasks: Dictionary of all available tasks
+        exclude_task_id: Task ID to exclude from selection (e.g., the task being created)
+
+    Returns:
+        List of selected dependency IDs
+    """
+    # Filter out the task being created and done tasks
+    available_tasks = {
+        tid: task
+        for tid, task in all_tasks.items()
+        if tid != exclude_task_id and task.status != "done"
+    }
+
+    if not available_tasks:
+        return []
+
+    # Create menu options with task ID and message
+    options = []
+    task_ids = []
+    for task_id in sorted(available_tasks.keys()):
+        task = available_tasks[task_id]
+        state = task.compute_state(all_tasks)
+        option = f"{task_id}: {task.message} [{state}]"
+        options.append(option)
+        task_ids.append(task_id)
+
+    # Add "None" option to finish selection
+    options.append("Done - no more dependencies")
+    task_ids.append(None)
+
+    selected_deps = []
+    while True:
+        print("\nSelect dependencies (use arrow keys and Enter, or type to search):")
+        if selected_deps:
+            print(f"Already selected: {', '.join(selected_deps)}")
+
+        terminal_menu = TerminalMenu(
+            options,
+            title="Available tasks:",
+            show_search_hint=True,
+        )
+        menu_entry_index = terminal_menu.show()
+
+        if menu_entry_index is None:  # User pressed Ctrl+C or similar
+            break
+
+        # Handle the case where menu_entry_index might be a tuple (for multi-select)
+        if isinstance(menu_entry_index, tuple):
+            menu_entry_index = menu_entry_index[0]
+
+        index = int(menu_entry_index)
+        selected_task_id = task_ids[index]
+
+        if selected_task_id is None:  # "Done" option
+            break
+
+        if selected_task_id not in selected_deps:
+            selected_deps.append(selected_task_id)
+            print(f"Added dependency: {selected_task_id}")
+        else:
+            print(f"Already selected: {selected_task_id}")
+
+        # Remove the selected task from options to prevent re-selection
+        # But keep the "Done" option
+        options.pop(index)
+        task_ids.pop(index)
+
+        if len(options) == 1:  # Only "Done" option left
+            break
+
+    return selected_deps

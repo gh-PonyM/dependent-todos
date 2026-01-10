@@ -19,11 +19,11 @@
 - [x] `order` command (topological sort)
 
 ### Phase 3: Enhanced UX
-- [ ] Fuzzy search for dependencies
-- [ ] Interactive selection menu
-- [ ] Better formatting and colors
-- [ ] `show` command with full details
-- [ ] A tui with textual
+- [x] Fuzzy search for dependencies
+- [x] Interactive selection menu
+- [x] Better formatting and colors
+- [x] `show` command with full details
+- [x] A tui with textual
 
 ### Phase 4: Polish
 - [ ] Error handling and validation

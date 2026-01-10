@@ -1,7 +1,6 @@
 """Utility functions for the dependent todos application."""
 
 import re
-from typing import Optional
 
 
 def slugify(text: str, max_length: int = 50) -> str:

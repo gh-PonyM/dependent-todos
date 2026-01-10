@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-import click
 
 
 def get_config_path(config_override: str | None = None) -> Path:
