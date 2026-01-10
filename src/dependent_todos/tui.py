@@ -100,27 +100,32 @@ class TaskTable(DataTable):
 class DependencyTree(Tree):
     """Tree widget for displaying task dependencies."""
 
-    def __init__(self, tasks: dict[str, Task]):
+    def __init__(self, tasks: dict[str, Task], root_task_id: str | None = None):
         super().__init__("Tasks")
         self.tasks = tasks
+        self.root_task_id = root_task_id
         self._build_tree()
 
     def _build_tree(self):
         """Build the dependency tree."""
-        # Group tasks by their root (tasks with no dependencies pointing to them)
-        dependents = set()
-        for task in self.tasks.values():
-            dependents.update(task.dependencies)
+        if self.root_task_id and self.root_task_id in self.tasks:
+            # Build tree starting from specific task
+            self._add_task_node(self.root, self.root_task_id)
+        else:
+            # Group tasks by their root (tasks with no dependencies pointing to them)
+            dependents = set()
+            for task in self.tasks.values():
+                dependents.update(task.dependencies)
 
-        root_tasks = [tid for tid in self.tasks.keys() if tid not in dependents]
-        root_tasks.sort()
+            root_tasks = [tid for tid in self.tasks.keys() if tid not in dependents]
+            root_tasks.sort()
 
-        if not root_tasks:
-            # Handle case where there are cycles - just show all tasks
-            root_tasks = sorted(self.tasks.keys())
+            if not root_tasks:
+                # Handle case where there are cycles - just show all tasks
+                root_tasks = sorted(self.tasks.keys())
 
-        for root_id in root_tasks:
-            self._add_task_node(self.root, root_id)
+            for root_id in root_tasks:
+                self._add_task_node(self.root, root_id)
 
     def _add_task_node(self, parent_node, task_id: str):
         """Add a task node to the tree."""
@@ -442,6 +447,7 @@ class DependentTodosApp(App):
         ("e", "update_task", "Update selected task"),
         ("d", "delete_task", "Delete selected task"),
         ("m", "mark_done", "Mark task done"),
+        ("t", "toggle_tree", "Toggle tree"),
         ("tab", "next_tab", "Next tab"),
         ("shift+tab", "previous_tab", "Previous tab"),
     ]
@@ -461,6 +467,8 @@ class DependentTodosApp(App):
         yield Header()
 
         with Horizontal():
+            with Container(id="sidebar", classes="hidden"):
+                yield DependencyTree(self.tasks, root_task_id=self.current_task_id, id="dep-tree")
             with Container(id="main-content"):
                 yield FocusableTabs("All", "Todo", "Done", "Pending", id="filter-tabs")
                 yield TaskTable(
@@ -479,6 +487,12 @@ class DependentTodosApp(App):
             self.current_task_id = task_id
             details = self.query_one("#task-details", TaskDetails)
             details.update_task(task_id, self.tasks)
+            # Refresh tree if visible
+            sidebar = self.query_one("#sidebar", Container)
+            if "hidden" not in sidebar.classes:
+                tree = self.query_one("#dep-tree", DependencyTree)
+                tree.root_task_id = self.current_task_id
+                tree._build_tree()
 
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         """Handle filter tab change."""
@@ -521,6 +535,12 @@ class DependentTodosApp(App):
         try:
             save_tasks_to_file(self.tasks, self.config_path)
             self.action_refresh()
+            # Refresh tree if visible
+            sidebar = self.query_one("#sidebar", Container)
+            if "hidden" not in sidebar.classes:
+                tree = self.query_one("#dep-tree", DependencyTree)
+                tree.tasks = self.tasks
+                tree._build_tree()
         except Exception as e:
             self.notify(f"Error saving tasks: {e}", severity="error")
 
@@ -555,6 +575,25 @@ class DependentTodosApp(App):
             details.show_order(ordered)
         except ValueError as e:
             self.notify(f"Error: {e}")
+
+    def action_toggle_tree(self) -> None:
+        """Toggle the dependency tree sidebar."""
+        sidebar = self.query_one("#sidebar", Container)
+        if "hidden" in sidebar.classes:
+            if self.current_task_id:
+                # Show sidebar and refresh tree
+                sidebar.remove_class("hidden")
+                tree = self.query_one("#dep-tree", DependencyTree)
+                tree.tasks = self.tasks
+                tree.root_task_id = self.current_task_id
+                tree._build_tree()
+                self.notify("Dependency tree shown")
+            else:
+                self.notify("No task selected")
+        else:
+            # Hide sidebar
+            sidebar.add_class("hidden")
+            self.notify("Dependency tree hidden")
 
     def action_next_tab(self) -> None:
         """Switch to the next filter tab."""
