@@ -1,5 +1,7 @@
 """Dependency management utilities for tasks."""
 
+from graphlib import TopologicalSorter
+
 from simple_term_menu import TerminalMenu
 
 from .models import Task
@@ -18,39 +20,21 @@ def detect_circular_dependencies(
     Returns:
         List of task IDs that would create a circular dependency, empty if none
     """
-    # Build the dependency graph
+    from graphlib import CycleError
+
+    # Build the dependency graph including the new task
     graph = {tid: task.dependencies for tid, task in all_tasks.items()}
     graph[task_id] = dependencies
 
-    # Check for cycles starting from each dependency
-    for dep in dependencies:
-        if _has_path(dep, task_id, graph):
-            return [dep]  # Return the first circular dependency found
-
-    return []
-
-
-def _has_path(start: str, target: str, graph: dict[str, list[str]]) -> bool:
-    """Check if there's a path from start to target in the graph."""
-    visited = set()
-    stack = [start]
-
-    while stack:
-        current = stack.pop()
-        if current == target:
-            return True
-
-        if current in visited:
-            continue
-
-        visited.add(current)
-
-        # Add dependencies to stack
-        for dep in graph.get(current, []):
-            if dep not in visited:
-                stack.append(dep)
-
-    return False
+    ts = TopologicalSorter(graph)
+    try:
+        # Attempt to prepare the graph (this checks for cycles)
+        ts.prepare()
+        return []  # No cycles detected
+    except CycleError:
+        # Could parse the error message to identify specific cycle
+        # For now, return the dependencies that caused the issue
+        return dependencies
 
 
 def topological_sort(tasks: dict[str, Task]) -> list[str]:
@@ -67,43 +51,21 @@ def topological_sort(tasks: dict[str, Task]) -> list[str]:
     Raises:
         ValueError: If circular dependencies are detected
     """
-    # Only consider tasks that are not done
+    from graphlib import CycleError
+
     active_tasks = {tid: task for tid, task in tasks.items() if task.status != "done"}
 
     if not active_tasks:
         return []
 
-    # Build adjacency list (task -> dependencies)
-    graph = {task_id: task.dependencies[:] for task_id, task in active_tasks.items()}
+    # Build graph for TopologicalSorter (task -> dependencies)
+    graph = {task_id: task.dependencies for task_id, task in active_tasks.items()}
 
-    # Calculate in-degrees (number of incoming edges - how many dependencies each task has)
-    in_degree = {
-        task_id: len(task.dependencies) for task_id, task in active_tasks.items()
-    }
-
-    # Find tasks with no dependencies
-    queue = [task_id for task_id, degree in in_degree.items() if degree == 0]
-    result = []
-
-    while queue:
-        # Sort queue for consistent ordering
-        queue.sort()
-
-        current = queue.pop(0)
-        result.append(current)
-
-        # Reduce in-degree of tasks that depend on current
-        for task_id, deps in graph.items():
-            if current in deps:
-                in_degree[task_id] -= 1
-                if in_degree[task_id] == 0:
-                    queue.append(task_id)
-
-    # Check for cycles
-    if len(result) != len(active_tasks):
-        raise ValueError("Circular dependencies detected in tasks")
-
-    return result
+    ts = TopologicalSorter(graph)
+    try:
+        return list(ts.static_order())
+    except CycleError as e:
+        raise ValueError("Circular dependencies detected in tasks") from e
 
 
 def get_ready_tasks(tasks: dict[str, Task]) -> list[str]:
