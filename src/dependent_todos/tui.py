@@ -302,16 +302,18 @@ class AddTaskModal(BaseModalScreen):
     # TODO focus on textarea on pushing the screen
 
     def get_content(self) -> ComposeResult:
-        yield Input("ID: ", id="task-id")
+        yield Static("ID: ", id="task-id")
         yield TextArea(placeholder="Task message", id="task-message")
+
+    def on_mount(self) -> None:
+        self.query_one("#task-message", TextArea).focus()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         message = event.text_area.text
         app = cast(DependentTodosApp, self.app)
         existing_ids = set(app.tasks.keys())
         task_id = generate_unique_id(message, existing_ids)
-        # TODO: this fails, fix it
-        self.query_one("#task-id", Input).value(task_id)
+        self.query_one("#task-id", Static).update(f"ID: {task_id}")
 
     def on_ok_pressed(self):
         message = self.query_one("#task-message", TextArea).text
