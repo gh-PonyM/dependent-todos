@@ -1,0 +1,9 @@
+- TODO A python code example using dependency trees and then get a list of items
+	- What cool tool could we make out of this?
+		- I want to have a list of tasks that have been registered as tasks
+		- On adding a new task, I want to enter a message, then an id, and then in the next step, be able to fuzzy search existing id's as dependencies
+		- I want a single python file, it should have a uv comment to specify the depenencies
+		- We might not need any external dependencies
+		- I want to use toml as dependency
+		- Note the min required python version (that has toml as lib installed)
+			- make conditional uv install for older python versions (if the tomllib changed, check this)
