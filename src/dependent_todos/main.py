@@ -483,12 +483,3 @@ def tui(ctx: click.Context) -> None:
     from .tui import run_tui
 
     run_tui()
-
-
-def main() -> None:
-    """Entry point for the CLI."""
-    cli()
-
-
-if __name__ == "__main__":
-    main()

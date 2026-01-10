@@ -1,6 +1,5 @@
 """Dependency management utilities for tasks."""
 
-
 from simple_term_menu import TerminalMenu
 
 from .models import Task
