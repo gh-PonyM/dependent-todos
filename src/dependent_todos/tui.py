@@ -1,5 +1,6 @@
 """Textual TUI interface for dependent todos."""
 
+from datetime import datetime
 from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import cast, Literal
@@ -440,6 +441,7 @@ class DependentTodosApp(App):
         ("o", "show_order", "Show order"),
         ("e", "update_task", "Update selected task"),
         ("d", "delete_task", "Delete selected task"),
+        ("m", "mark_done", "Mark task done"),
         ("tab", "next_tab", "Next tab"),
         ("shift+tab", "previous_tab", "Previous tab"),
     ]
@@ -497,6 +499,20 @@ class DependentTodosApp(App):
         """Delete the selected task using modal."""
         if self.current_task_id:
             self.push_screen(DeleteTaskModal(self.current_task_id))
+        else:
+            self.notify("No task selected")
+
+    def action_mark_done(self) -> None:
+        """Mark the selected task as done."""
+        if self.current_task_id:
+            task = self.tasks.get(self.current_task_id)
+            if task:
+                task.status = "done"
+                task.completed = datetime.now()
+                self._save_and_refresh()
+                self.notify(f"Task '{self.current_task_id}' marked as done")
+            else:
+                self.notify("Task not found")
         else:
             self.notify("No task selected")
 

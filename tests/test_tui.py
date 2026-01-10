@@ -204,6 +204,44 @@ async def test_navigation_and_focus(temp_dir):
 
 
 @pytest.mark.asyncio
+async def test_mark_done_key(temp_dir):
+    """Test the mark done key functionality."""
+    app = DependentTodosApp()
+    async with app.run_test() as pilot:
+        # Add a pending task
+        from dependent_todos.models import Task
+        from datetime import datetime
+
+        app.tasks = {
+            "task1": Task(
+                id="task1",
+                message="Task 1",
+                dependencies=[],
+                status="pending",
+                cancelled=False,
+                started=None,
+                completed=None,
+            ),
+        }
+        # Refresh the table
+        table = cast(TaskTable, pilot.app.query_one("#task-table"))
+        table.refresh_data(app.tasks)
+
+        # Select the task
+        app.current_task_id = "task1"
+
+        # Press mark done key
+        await pilot.press("m")
+
+        # Check that the task is marked as done
+        task = app.tasks["task1"]
+        assert task.status == "done"
+        assert task.completed is not None
+        # Should be recent timestamp
+        assert (datetime.now() - task.completed).total_seconds() < 1
+
+
+@pytest.mark.asyncio
 async def test_topological_order_key(temp_dir):
     """Test the topological order key."""
     app = DependentTodosApp()
