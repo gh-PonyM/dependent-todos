@@ -165,7 +165,7 @@ def select_dependencies_interactive(
 
     selected_deps = []
     while True:
-        print("\nSelect dependencies (use arrow keys and Enter, or type to search):")
+        print("\nDepends on (use arrow keys and Enter, or type to search):")
         if selected_deps:
             print(f"Already selected: {', '.join(selected_deps)}")
 
@@ -173,6 +173,7 @@ def select_dependencies_interactive(
             options,
             title="Available tasks:",
             show_search_hint=True,
+            multi_select=True
         )
         menu_entry_index = terminal_menu.show()
 
@@ -180,8 +181,7 @@ def select_dependencies_interactive(
             break
 
         # Handle the case where menu_entry_index might be a tuple (for multi-select)
-        if isinstance(menu_entry_index, tuple):
-            menu_entry_index = menu_entry_index[0]
+        menu_entry_index = menu_entry_index[0]
 
         index = int(menu_entry_index)
         selected_task_id = task_ids[index]
