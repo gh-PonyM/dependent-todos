@@ -3,7 +3,12 @@
 import pytest
 from typing import cast
 
-from dependent_todos.tui import DependentTodosApp, FocusableTabs, TaskTable, TaskDetails
+from dependent_todos.tui import (
+    DependentTodosApp,
+    FocusableTabs,
+    TaskTable,
+    TaskDetails,
+)
 
 
 @pytest.mark.asyncio

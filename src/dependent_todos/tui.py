@@ -3,7 +3,7 @@
 from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import cast
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Grid, Horizontal
 from textual.widgets import (
     Button,
     DataTable,
@@ -193,45 +193,6 @@ class TaskDetails(Static):
         return details
 
 
-class AddTaskModal(ModalScreen):
-    """Modal for adding a new task."""
-
-    def compose(self) -> ComposeResult:
-        yield Static("Add New Task", id="title")
-        yield Input(placeholder="Task message", id="task-message")
-        yield Button("Add", id="add")
-        yield Button("Cancel", id="cancel")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add":
-            message = self.query_one("#task-message", Input).value
-            if message.strip():
-                # For now, add without dependencies
-                from dependent_todos.utils import generate_unique_id
-                from dependent_todos.storage import save_tasks_to_file
-
-                app = cast(DependentTodosApp, self.app)
-                existing_ids = set(app.tasks.keys())
-                task_id = generate_unique_id(message, existing_ids)
-                task = Task(
-                    id=task_id,
-                    message=message,
-                    dependencies=[],
-                    status="pending",
-                    cancelled=False,
-                    started=None,
-                    completed=None,
-                )
-                app.tasks[task_id] = task
-                save_tasks_to_file(app.tasks, app.config_path)
-                app.action_refresh()
-                self.dismiss()
-            else:
-                self.notify("Task message cannot be empty")
-        elif event.button.id == "cancel":
-            self.dismiss()
-
-
 class UpdateTaskModal(ModalScreen):
     """Modal for updating a task."""
 
@@ -295,6 +256,66 @@ class DeleteTaskModal(ModalScreen):
                 app.action_refresh()
                 app.current_task_id = None
             self.dismiss()
+        elif event.button.id == "cancel":
+            self.dismiss()
+
+
+class BaseModalScreen(ModalScreen):
+    """Base modal screen with extensible content and buttons."""
+
+    def compose(self) -> ComposeResult:
+        with Grid(id="modal-dialog"):
+            yield from self.get_header()
+            with Container(classes="modal-content"):
+                yield from self.get_content()
+            yield from self.get_buttons()
+
+    def get_content(self) -> ComposeResult:
+        """Override to provide modal content."""
+        yield from []
+
+    def get_header(self) -> ComposeResult:
+        yield from []
+
+    def get_buttons(self) -> ComposeResult:
+        """Override to provide modal buttons."""
+        yield Button("Ok", id="ok", classes="modal-button")
+        yield Button("Cancel", id="cancel", classes="modal-button")
+
+
+class AddTaskModal(BaseModalScreen):
+    """Modal for adding a new task."""
+
+    def get_content(self) -> ComposeResult:
+        yield Static("Add New Task", id="title")
+        yield Input(placeholder="Task message", id="task-message")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add":
+            message = self.query_one("#task-message", Input).value
+            if message.strip():
+                # For now, add without dependencies
+                from dependent_todos.utils import generate_unique_id
+                from dependent_todos.storage import save_tasks_to_file
+
+                app = cast(DependentTodosApp, self.app)
+                existing_ids = set(app.tasks.keys())
+                task_id = generate_unique_id(message, existing_ids)
+                task = Task(
+                    id=task_id,
+                    message=message,
+                    dependencies=[],
+                    status="pending",
+                    cancelled=False,
+                    started=None,
+                    completed=None,
+                )
+                app.tasks[task_id] = task
+                save_tasks_to_file(app.tasks, app.config_path)
+                app.action_refresh()
+                self.dismiss()
+            else:
+                self.notify("Task message cannot be empty")
         elif event.button.id == "cancel":
             self.dismiss()
 

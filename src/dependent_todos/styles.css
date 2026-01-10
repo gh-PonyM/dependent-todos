@@ -30,3 +30,32 @@ Screen {
 Button {
     margin: 1;
 }
+
+/* Modal styles */
+
+BaseModalScreen {
+  align: center middle;
+}
+
+BaseModalScreen * {
+  border: green;
+}
+
+#modal-dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 70;
+    height: 30;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+.modal-content {
+  content-align: center middle;
+}
+
+.modal-button {
+  width: 100%;
+}
