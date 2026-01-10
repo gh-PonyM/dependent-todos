@@ -1,7 +1,6 @@
 """Command-line interface for dependent todos."""
 
 import click
-from typing import Optional
 
 from .config import get_config_path
 from .models import Task

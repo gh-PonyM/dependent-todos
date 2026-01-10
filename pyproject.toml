@@ -30,5 +30,8 @@ dev = [
 ]
 
 [tool.ruff]
-select = ["UP"]
+target-version = "py311"
 fix = true
+
+[tool.ruff.lint]
+select = ["UP", "F"]

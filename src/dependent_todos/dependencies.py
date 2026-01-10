@@ -1,6 +1,5 @@
 """Dependency management utilities for tasks."""
 
-from typing import Dict, List
 
 from simple_term_menu import TerminalMenu
 

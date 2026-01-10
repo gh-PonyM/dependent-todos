@@ -1,7 +1,5 @@
 """Textual TUI interface for dependent todos."""
 
-from typing import Dict
-
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal
