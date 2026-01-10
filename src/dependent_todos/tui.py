@@ -11,16 +11,18 @@ from textual.widgets import (
     Footer,
     Header,
     Input,
+    SelectionList,
     Static,
     Tabs,
     TextArea,
     Tree,
 )
+from textual.widgets.selection_list import Selection
 from textual.screen import ModalScreen
 from textual import events
 
 from dependent_todos.config import get_config_path
-from dependent_todos.dependencies import get_ready_tasks, topological_sort
+from dependent_todos.dependencies import detect_circular_dependencies, get_ready_tasks, topological_sort
 from dependent_todos.models import STATE_COLORS, Task
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
 from dependent_todos.utils import generate_unique_id
@@ -332,6 +334,35 @@ class UpdateTaskModal(BaseModalScreen):
         super().__init__()
         self.task_id = task_id
 
+    def _get_dependency_options(self) -> list[Selection[str]]:
+        """Get available tasks for dependency selection."""
+        app = cast(DependentTodosApp, self.app)
+        options = []
+        for task_id, task in app.tasks.items():
+            if task_id != self.task_id and task.status != "done":  # Exclude self and done tasks
+                state = task.compute_state(app.tasks)
+                display_text = f"{task_id}: {task.message} [{state}]"
+                # Pre-select current dependencies
+                selected = task_id in app.tasks[self.task_id].dependencies
+                options.append(Selection(display_text, task_id, selected))
+        return options
+
+    def _get_depending_on_text(self) -> str:
+        """Get text for tasks that depend on this task."""
+        app = cast(DependentTodosApp, self.app)
+        dependents = [
+            tid for tid, t in app.tasks.items()
+            if self.task_id in t.dependencies
+        ]
+        if not dependents:
+            return "None"
+        dependent_texts = []
+        for dep_id in dependents:
+            dep_task = app.tasks[dep_id]
+            dep_state = dep_task.compute_state(app.tasks)
+            dependent_texts.append(f"• {dep_id}: {dep_task.message} [{dep_state}]")
+        return "\n".join(dependent_texts)
+
     def get_content(self) -> ComposeResult:
         app = cast(DependentTodosApp, self.app)
         task = app.tasks.get(self.task_id)
@@ -340,6 +371,14 @@ class UpdateTaskModal(BaseModalScreen):
             return
         yield Static(f"Task ID: {self.task_id}", classes="task-id")
         yield TextArea(task.message, classes="task-message")
+        yield Static("Depends on:", classes="depends-on-label")
+        yield SelectionList[str](
+            *self._get_dependency_options(),
+            classes="depends-on-list",
+            id="depends-on"
+        )
+        yield Static("Depending on:", classes="depending-on-label")
+        yield Static(self._get_depending_on_text(), classes="depending-on-list")
 
     def on_mount(self) -> None:
         self.query_one(".task-message", TextArea).focus()
@@ -357,7 +396,18 @@ class UpdateTaskModal(BaseModalScreen):
             self.dismiss()
             return
 
+        # Get selected dependencies
+        selection_list = self.query_one("#depends-on", SelectionList)
+        selected_deps = list(selection_list.selected)
+
+        # Validate for circular dependencies
+        circular_deps = detect_circular_dependencies(self.task_id, selected_deps, app.tasks)
+        if circular_deps:
+            self.notify(f"Circular dependency detected with: {', '.join(circular_deps)}")
+            return
+
         task.message = message
+        task.dependencies = selected_deps
         app._save_and_refresh()
         self.dismiss()
 
@@ -396,9 +446,26 @@ class AddTaskModal(BaseModalScreen):
 
     TITLE = "Add a new task"
 
+    def _get_dependency_options(self) -> list[Selection[str]]:
+        """Get available tasks for dependency selection."""
+        app = cast(DependentTodosApp, self.app)
+        options = []
+        for task_id, task in app.tasks.items():
+            if task.status != "done":  # Exclude done tasks
+                state = task.compute_state(app.tasks)
+                display_text = f"{task_id}: {task.message} [{state}]"
+                options.append(Selection(display_text, task_id))
+        return options
+
     def get_content(self) -> ComposeResult:
         yield Input("", classes="task-id", placeholder="Task ID", disabled=True)
         yield TextArea(placeholder="Task message", classes="task-message")
+        yield Static("Depends on:", classes="depends-on-label")
+        yield SelectionList[str](
+            *self._get_dependency_options(),
+            classes="depends-on-list",
+            id="depends-on"
+        )
 
     def on_mount(self) -> None:
         self.query_one(".task-message", TextArea).focus()
@@ -416,16 +483,26 @@ class AddTaskModal(BaseModalScreen):
 
         if not message.strip():
             self.notify("Task message cannot be empty")
-            # For now, add without dependencies
             return
 
         app = cast(DependentTodosApp, self.app)
         existing_ids = set(app.tasks.keys())
         task_id = generate_unique_id(message, existing_ids)
+
+        # Get selected dependencies
+        selection_list = self.query_one("#depends-on", SelectionList)
+        selected_deps = list(selection_list.selected)
+
+        # Validate for circular dependencies
+        circular_deps = detect_circular_dependencies(task_id, selected_deps, app.tasks)
+        if circular_deps:
+            self.notify(f"Circular dependency detected with: {', '.join(circular_deps)}")
+            return
+
         task = Task(
             id=task_id,
             message=message,
-            dependencies=[],
+            dependencies=selected_deps,
             status="pending",
             cancelled=False,
             started=None,
