@@ -24,6 +24,11 @@ from dependent_todos.models import STATE_COLORS, Task
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
 from dependent_todos.utils import generate_unique_id
 
+# UI Constants
+MAX_MESSAGE_DISPLAY_LENGTH = 50
+MESSAGE_TRUNCATE_LENGTH = 47
+TRUNCATION_SUFFIX = "..."
+
 
 class FocusableTabs(Tabs):
     """Tabs widget that can be focused."""
@@ -77,8 +82,8 @@ class TaskTable(DataTable):
 
             # Truncate message if too long
             message = task.message
-            if len(message) > 50:
-                message = message[:47] + "..."
+            if len(message) > MAX_MESSAGE_DISPLAY_LENGTH:
+                message = message[:MESSAGE_TRUNCATE_LENGTH] + TRUNCATION_SUFFIX
 
             self.add_row(task_id, state_text.plain, message)
 
@@ -220,7 +225,7 @@ class BaseModalScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         # with Grid(id="modal-dialog"):
         with Grid(classes="modal-dialog"):
-            yield Static(self.TITLE, classes="title")
+            yield Static(str(self.TITLE), classes="title")
             # TODO: Here I am asking myself if we can check if the elements have a row-span defined.
             # if not we take the height from the title, and the height of the button as rowspan and use 12 (grid row number)
             # set the heights dynamically, is this possible?
@@ -252,7 +257,7 @@ class BaseModalScreen(ModalScreen):
         elif event.button.id == self.BTN_CANCEL_ID:
             self.dismiss()
 
-    def on_ok_pressed(self):
+    def on_ok_pressed(self) -> None:
         """Override to handle OK button press."""
         pass
 
@@ -261,7 +266,7 @@ class BaseModalScreen(ModalScreen):
         if event.button == 1 and event.control == self:
             self.dismiss()
 
-    def action_next_input(self):
+    def action_next_input(self) -> None:
         """Focus the next input field."""
         focusables = list(self.query("Input, TextArea").nodes)
         if not focusables:
@@ -275,7 +280,7 @@ class BaseModalScreen(ModalScreen):
             next_index = 0
         self.set_focus(focusables[next_index])
 
-    def action_prev_input(self):
+    def action_prev_input(self) -> None:
         """Focus the previous input field."""
         focusables = list(self.query("Input, TextArea").nodes)
         if focusables:
@@ -303,7 +308,7 @@ class UpdateTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         task = app.tasks.get(self.task_id)
         if not task:
-            self.dismiss()
+            yield Static(f"Error: Task '{self.task_id}' not found", classes="error")
             return
         yield Static(f"Task ID: {self.task_id}", classes="task-id")
         yield TextArea(task.message, classes="task-message")
@@ -311,20 +316,22 @@ class UpdateTaskModal(BaseModalScreen):
     def on_mount(self) -> None:
         self.query_one(".task-message", TextArea).focus()
 
-    def on_ok_pressed(self):
+    def on_ok_pressed(self) -> None:
         message = self.query_one(".task-message", TextArea).text
-        if message.strip():
-            app = cast(DependentTodosApp, self.app)
-            task = app.tasks.get(self.task_id)
-            if task:
-                task.message = message
-                from dependent_todos.storage import save_tasks_to_file
-
-                save_tasks_to_file(app.tasks, app.config_path)
-                app.action_refresh()
-            self.dismiss()
-        else:
+        if not message.strip():
             self.notify("Task message cannot be empty")
+            return
+        
+        app = cast(DependentTodosApp, self.app)
+        task = app.tasks.get(self.task_id)
+        if not task:
+            self.notify(f"Error: Task '{self.task_id}' not found")
+            self.dismiss()
+            return
+        
+        task.message = message
+        app._save_and_refresh()
+        self.dismiss()
 
 
 class DeleteTaskModal(BaseModalScreen):
@@ -347,14 +354,11 @@ class DeleteTaskModal(BaseModalScreen):
             classes="confirmation",
         )
 
-    def on_ok_pressed(self):
+    def on_ok_pressed(self) -> None:
         app = cast(DependentTodosApp, self.app)
         if self.task_id in app.tasks:
             del app.tasks[self.task_id]
-            from dependent_todos.storage import save_tasks_to_file
-
-            save_tasks_to_file(app.tasks, app.config_path)
-            app.action_refresh()
+            app._save_and_refresh()
             app.current_task_id = None
         self.dismiss()
 
@@ -379,7 +383,7 @@ class AddTaskModal(BaseModalScreen):
         inp = self.query_one("#task-id", Input)
         inp.value = task_id
 
-    def on_ok_pressed(self):
+    def on_ok_pressed(self) -> None:
         message = self.query_one(".task-message", TextArea).text
 
         if not message.strip():
@@ -400,8 +404,7 @@ class AddTaskModal(BaseModalScreen):
             completed=None,
         )
         app.tasks[task_id] = task
-        save_tasks_to_file(app.tasks, app.config_path)
-        app.action_refresh()
+        app._save_and_refresh()
         self.dismiss()
 
 
@@ -457,34 +460,45 @@ class DependentTodosApp(App):
         """Handle filter tab change."""
         self._update_filter_from_tab()
 
-    def action_add_task(self):
+    def action_add_task(self) -> None:
         """Add a new task using modal."""
         self.push_screen(AddTaskModal())
 
-    def action_update_task(self):
+    def action_update_task(self) -> None:
         """Update the selected task using modal."""
         if self.current_task_id:
             self.push_screen(UpdateTaskModal(self.current_task_id))
         else:
             self.notify("No task selected")
 
-    def action_delete_task(self):
+    def action_delete_task(self) -> None:
         """Delete the selected task using modal."""
         if self.current_task_id:
             self.push_screen(DeleteTaskModal(self.current_task_id))
         else:
             self.notify("No task selected")
 
-    def action_refresh(self):
-        """Refresh the task data."""
-        self.tasks = load_tasks_from_file(self.config_path)
-        table = self.query_one("#task-table", TaskTable)
-        table.refresh_data(self.tasks)
-        details = self.query_one("#task-details", TaskDetails)
-        details.tasks = self.tasks
-        details.refresh()
+    def _save_and_refresh(self) -> None:
+        """Save tasks to file and refresh the UI."""
+        try:
+            save_tasks_to_file(self.tasks, self.config_path)
+            self.action_refresh()
+        except Exception as e:
+            self.notify(f"Error saving tasks: {e}", severity="error")
 
-    def action_show_ready(self):
+    def action_refresh(self) -> None:
+        """Refresh the task data."""
+        try:
+            self.tasks = load_tasks_from_file(self.config_path)
+            table = self.query_one("#task-table", TaskTable)
+            table.refresh_data(self.tasks)
+            details = self.query_one("#task-details", TaskDetails)
+            details.tasks = self.tasks
+            details.refresh()
+        except Exception as e:
+            self.notify(f"Error loading tasks: {e}", severity="error")
+
+    def action_show_ready(self) -> None:
         """Show ready tasks."""
         ready_tasks = get_ready_tasks(self.tasks)
         if ready_tasks:
@@ -495,7 +509,7 @@ class DependentTodosApp(App):
         else:
             self.notify("No tasks are ready to work on")
 
-    def action_show_order(self):
+    def action_show_order(self) -> None:
         """Show topological execution order."""
         try:
             ordered = topological_sort(self.tasks)
@@ -510,27 +524,37 @@ class DependentTodosApp(App):
         except ValueError as e:
             self.notify(f"Error: {e}")
 
-    def action_next_tab(self):
+    def action_next_tab(self) -> None:
         """Switch to the next filter tab."""
         tabs = self.query_one("#filter-tabs", FocusableTabs)
-        current_tab = tabs.active_tab
-        if current_tab is not None:
-            current_index = tabs._tabs.index(current_tab)
-            next_index = (current_index + 1) % len(tabs._tabs)
-            tabs.active = cast(str, tabs._tabs[next_index].id)
-            self._update_filter_from_tab()
+        # Cycle through tabs using the tab index
+        tab_labels = ["all", "ready", "done", "pending"]
+        current_filter = self.current_filter
+        if current_filter in tab_labels:
+            current_index = tab_labels.index(current_filter)
+            next_index = (current_index + 1) % len(tab_labels)
+            # Query all tab widgets and get their IDs
+            all_tabs = list(tabs.query("Tab"))
+            if next_index < len(all_tabs):
+                tabs.active = all_tabs[next_index].id or ""
+                self._update_filter_from_tab()
 
-    def action_previous_tab(self):
+    def action_previous_tab(self) -> None:
         """Switch to the previous filter tab."""
         tabs = self.query_one("#filter-tabs", FocusableTabs)
-        current_tab = tabs.active_tab
-        if current_tab is not None:
-            current_index = tabs._tabs.index(current_tab)
-            prev_index = (current_index - 1) % len(tabs._tabs)
-            tabs.active = cast(str, tabs._tabs[prev_index].id)
-            self._update_filter_from_tab()
+        # Cycle through tabs using the tab index
+        tab_labels = ["all", "ready", "done", "pending"]
+        current_filter = self.current_filter
+        if current_filter in tab_labels:
+            current_index = tab_labels.index(current_filter)
+            prev_index = (current_index - 1) % len(tab_labels)
+            # Query all tab widgets and get their IDs
+            all_tabs = list(tabs.query("Tab"))
+            if prev_index < len(all_tabs):
+                tabs.active = all_tabs[prev_index].id or ""
+                self._update_filter_from_tab()
 
-    def action_focus_next(self):
+    def action_focus_next(self) -> None:
         """Switch focus to the next widget."""
         focusables = [self.query_one("#filter-tabs"), self.query_one("#task-table")]
         current = self.focused
@@ -541,7 +565,7 @@ class DependentTodosApp(App):
         else:
             self.set_focus(focusables[0])
 
-    def action_focus_previous(self):
+    def action_focus_previous(self) -> None:
         """Switch focus to the previous widget."""
         focusables = [self.query_one("#filter-tabs"), self.query_one("#task-table")]
         current = self.focused
@@ -552,7 +576,7 @@ class DependentTodosApp(App):
         else:
             self.set_focus(focusables[-1])
 
-    def _update_filter_from_tab(self):
+    def _update_filter_from_tab(self) -> None:
         """Update the current filter and table based on active tab."""
         tabs = self.query_one("#filter-tabs", FocusableTabs)
         if tabs.active_tab is not None:
@@ -561,7 +585,7 @@ class DependentTodosApp(App):
             table.filter_state = self.current_filter
             table._populate_table()
 
-    def on_key(self, event):
+    def on_key(self, event: events.Key) -> None:
         """Handle key presses."""
         if event.key == "tab":
             event.prevent_default()
@@ -573,13 +597,16 @@ class DependentTodosApp(App):
             table = cast(TaskTable, self.query_one("#task-table"))
             if table.has_focus:
                 event.prevent_default()
-                new_row = max(0, table.cursor_row - 1)
-                table.move_cursor(row=new_row)
-                row_key = list(table.rows.keys())[new_row]
-                task_id = table.get_row(row_key)[0]
-                self.current_task_id = task_id
-                details = self.query_one("#task-details", TaskDetails)
-                details.update_task(task_id, self.tasks)
+                if table.rows:
+                    new_row = max(0, table.cursor_row - 1)
+                    table.move_cursor(row=new_row)
+                    row_keys = list(table.rows.keys())
+                    if 0 <= new_row < len(row_keys):
+                        row_key = row_keys[new_row]
+                        task_id = table.get_row(row_key)[0]
+                        self.current_task_id = task_id
+                        details = self.query_one("#task-details", TaskDetails)
+                        details.update_task(task_id, self.tasks)
             else:
                 self.action_focus_previous()
                 event.prevent_default()
@@ -587,13 +614,16 @@ class DependentTodosApp(App):
             table = cast(TaskTable, self.query_one("#task-table"))
             if table.has_focus:
                 event.prevent_default()
-                new_row = min(len(table.rows) - 1, table.cursor_row + 1)
-                table.move_cursor(row=new_row)
-                row_key = list(table.rows.keys())[new_row]
-                task_id = table.get_row(row_key)[0]
-                self.current_task_id = task_id
-                details = self.query_one("#task-details", TaskDetails)
-                details.update_task(task_id, self.tasks)
+                if table.rows:
+                    new_row = min(len(table.rows) - 1, table.cursor_row + 1)
+                    table.move_cursor(row=new_row)
+                    row_keys = list(table.rows.keys())
+                    if 0 <= new_row < len(row_keys):
+                        row_key = row_keys[new_row]
+                        task_id = table.get_row(row_key)[0]
+                        self.current_task_id = task_id
+                        details = self.query_one("#task-details", TaskDetails)
+                        details.update_task(task_id, self.tasks)
             else:
                 self.action_focus_next()
                 event.prevent_default()
