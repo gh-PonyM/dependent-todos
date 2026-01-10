@@ -23,8 +23,8 @@ from .storage import load_tasks_from_file
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
-    def __init__(self, tasks: dict[str, Task]):
-        super().__init__()
+    def __init__(self, tasks: dict[str, Task], **kwargs):
+        super().__init__(**kwargs)
         self.tasks = tasks
         self.add_columns("ID", "State", "Message")
         self._populate_table()
@@ -109,8 +109,8 @@ class DependencyTree(Tree):
 class TaskDetails(Static):
     """Widget for displaying detailed task information."""
 
-    def __init__(self, task_id: str | None = None):
-        super().__init__()
+    def __init__(self, task_id: str | None = None, **kwargs):
+        super().__init__(**kwargs)
         self.task_id = task_id
         self.tasks = {}
 
