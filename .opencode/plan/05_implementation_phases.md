@@ -12,11 +12,11 @@
 - [x] `remove` command
 
 ### Phase 2: Dependencies
-- [ ] Dependency tracking in data model
-- [ ] Circular dependency detection
-- [ ] `tree` command
-- [ ] `ready` command
-- [ ] `order` command (topological sort)
+- [x] Dependency tracking in data model
+- [x] Circular dependency detection
+- [x] `tree` command
+- [x] `ready` command
+- [x] `order` command (topological sort)
 
 ### Phase 3: Enhanced UX
 - [ ] Fuzzy search for dependencies

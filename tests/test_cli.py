@@ -112,3 +112,96 @@ def test_remove_task(runner, temp_config):
     # Verify it was removed
     tasks = load_tasks_from_file(temp_config)
     assert len(tasks) == 0
+
+
+def test_add_task_with_dependencies(runner, temp_config):
+    """Test adding a task with dependencies."""
+    # Add base task
+    runner.invoke(cli, ["--config", str(temp_config), "add"], input="Base task\n\n")
+
+    # Add dependent task
+    tasks = load_tasks_from_file(temp_config)
+    base_id = list(tasks.keys())[0]
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(temp_config), "add"],
+        input=f"Dependent task\n\n{base_id}\n",
+    )
+    assert result.exit_code == 0
+    assert "added successfully" in result.output
+
+    # Verify dependency was saved
+    tasks = load_tasks_from_file(temp_config)
+    dep_task = [t for t in tasks.values() if t.message == "Dependent task"][0]
+    assert base_id in dep_task.dependencies
+
+
+def test_tree_command(runner, temp_config):
+    """Test tree command shows dependency structure."""
+    # Add tasks with dependencies
+    runner.invoke(cli, ["--config", str(temp_config), "add"], input="Base task\n\n")
+    tasks = load_tasks_from_file(temp_config)
+    base_id = list(tasks.keys())[0]
+
+    runner.invoke(
+        cli,
+        ["--config", str(temp_config), "add"],
+        input=f"Dependent task\n\n{base_id}\n",
+    )
+
+    # Test tree command
+    result = runner.invoke(cli, ["--config", str(temp_config), "tree"])
+    assert result.exit_code == 0
+    assert "Base task" in result.output
+    assert "Dependent task" in result.output
+    assert "└──" in result.output or "├──" in result.output
+
+
+def test_ready_command(runner, temp_config):
+    """Test ready command shows unblocked tasks."""
+    # Add base task
+    runner.invoke(cli, ["--config", str(temp_config), "add"], input="Base task\n\n")
+
+    # Add dependent task
+    tasks = load_tasks_from_file(temp_config)
+    base_id = list(tasks.keys())[0]
+
+    runner.invoke(
+        cli,
+        ["--config", str(temp_config), "add"],
+        input=f"Dependent task\n\n{base_id}\n",
+    )
+
+    # Test ready command - should show base task
+    result = runner.invoke(cli, ["--config", str(temp_config), "ready"])
+    assert result.exit_code == 0
+    assert "Base task" in result.output
+    assert "Dependent task" not in result.output
+
+
+def test_order_command(runner, temp_config):
+    """Test order command shows topological sort."""
+    # Add base task
+    runner.invoke(cli, ["--config", str(temp_config), "add"], input="Base task\n\n")
+
+    # Add dependent task
+    tasks = load_tasks_from_file(temp_config)
+    base_id = list(tasks.keys())[0]
+
+    runner.invoke(
+        cli,
+        ["--config", str(temp_config), "add"],
+        input=f"Dependent task\n\n{base_id}\n",
+    )
+
+    # Test order command
+    result = runner.invoke(cli, ["--config", str(temp_config), "order"])
+    assert result.exit_code == 0
+    assert "Base task" in result.output
+    assert "Dependent task" in result.output
+
+    # Base task should come before dependent task
+    base_pos = result.output.find("Base task")
+    dep_pos = result.output.find("Dependent task")
+    assert base_pos < dep_pos

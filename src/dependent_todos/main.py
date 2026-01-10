@@ -55,6 +55,92 @@ def list(ctx: click.Context) -> None:
 
 
 @cli.command()
+@click.argument("task_id", required=False)
+@click.pass_context
+def tree(ctx: click.Context, task_id: str | None) -> None:
+    """Show dependency tree visualization."""
+    from .dependencies import get_dependency_tree
+
+    config_path = ctx.obj["config_path"]
+    tasks = load_tasks_from_file(config_path)
+
+    if not tasks:
+        click.echo("No tasks found.")
+        return
+
+    if task_id:
+        # Show tree for specific task
+        if task_id not in tasks:
+            click.echo(f"Task '{task_id}' not found.", err=True)
+            return
+        tree_str = get_dependency_tree(task_id, tasks)
+        click.echo(tree_str.rstrip())
+    else:
+        # Show forest of all tasks
+        # Group tasks by their root (tasks with no dependencies pointing to them)
+        dependents = set()
+        for task in tasks.values():
+            dependents.update(task.dependencies)
+
+        root_tasks = [tid for tid in tasks.keys() if tid not in dependents]
+        root_tasks.sort()  # Consistent ordering
+
+        if not root_tasks:
+            # Handle case where there are cycles - just show all tasks
+            root_tasks = sorted(tasks.keys())
+
+        for i, root_id in enumerate(root_tasks):
+            tree_str = get_dependency_tree(root_id, tasks)
+            click.echo(tree_str.rstrip())
+            if i < len(root_tasks) - 1:
+                click.echo()  # Empty line between trees
+
+
+@cli.command()
+@click.pass_context
+def ready(ctx: click.Context) -> None:
+    """Show tasks that are ready to work on (all dependencies completed)."""
+    from .dependencies import get_ready_tasks
+
+    config_path = ctx.obj["config_path"]
+    tasks = load_tasks_from_file(config_path)
+
+    ready_tasks = get_ready_tasks(tasks)
+
+    if not ready_tasks:
+        click.echo("No tasks are ready to work on.")
+        return
+
+    click.echo("Ready to work on:")
+    for task_id in ready_tasks:
+        task = tasks[task_id]
+        click.echo(f"  - {task_id}: {task.message}")
+
+
+@cli.command()
+@click.pass_context
+def order(ctx: click.Context) -> None:
+    """Show topological execution order."""
+    from .dependencies import topological_sort
+
+    config_path = ctx.obj["config_path"]
+    tasks = load_tasks_from_file(config_path)
+
+    if not tasks:
+        click.echo("No tasks found.")
+        return
+
+    try:
+        ordered = topological_sort(tasks)
+        click.echo("Execution order:")
+        for i, task_id in enumerate(ordered, 1):
+            task = tasks[task_id]
+            click.echo(f"{i}. {task_id}: {task.message}")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+
+
+@cli.command()
 @click.argument("task_id")
 @click.pass_context
 def show(ctx: click.Context, task_id: str) -> None:
@@ -88,6 +174,8 @@ def show(ctx: click.Context, task_id: str) -> None:
 @click.pass_context
 def add(ctx: click.Context) -> None:
     """Add a new task interactively."""
+    from .dependencies import detect_circular_dependencies
+
     config_path = ctx.obj["config_path"]
     tasks = load_tasks_from_file(config_path)
 
@@ -110,8 +198,38 @@ def add(ctx: click.Context) -> None:
             return
         task_id = custom_id
 
+    # Get dependencies
+    dependencies = []
+    if tasks:
+        click.echo("Available tasks for dependencies:")
+        for tid, task in sorted(tasks.items()):
+            click.echo(f"  {tid}: {task.message}")
+
+        dep_input = click.prompt(
+            "Dependencies (comma-separated task IDs, or empty for none)", default=""
+        )
+        if dep_input.strip():
+            dep_ids = [d.strip() for d in dep_input.split(",") if d.strip()]
+
+            # Validate dependencies exist
+            invalid_deps = [d for d in dep_ids if d not in tasks]
+            if invalid_deps:
+                click.echo(f"Invalid dependencies: {', '.join(invalid_deps)}", err=True)
+                return
+
+            # Check for circular dependencies
+            circular = detect_circular_dependencies(task_id, dep_ids, tasks)
+            if circular:
+                click.echo(
+                    f"Circular dependency detected involving: {', '.join(circular)}",
+                    err=True,
+                )
+                return
+
+            dependencies = dep_ids
+
     # Create task
-    task = Task(id=task_id, message=message)
+    task = Task(id=task_id, message=message, dependencies=dependencies)
 
     # Save
     tasks[task_id] = task
