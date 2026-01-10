@@ -6,7 +6,6 @@ from textual.containers import Container, Horizontal
 from textual.widgets import (
     Button,
     DataTable,
-    Footer,
     Header,
     Static,
     Tree,
@@ -201,6 +200,12 @@ class DependentTodosApp(App):
         border-top: solid $primary;
     }
 
+    #footer {
+        height: 1;
+        border-top: solid $primary;
+        padding: 0 1;
+    }
+
     Button {
         margin: 1;
     }
@@ -226,7 +231,7 @@ class DependentTodosApp(App):
                 yield TaskTable(self.tasks, id="task-table")
                 yield TaskDetails(id="task-details")
 
-        yield Footer()
+        yield Static(f"Config: {self.config_path}", id="footer")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
