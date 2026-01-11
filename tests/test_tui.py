@@ -17,6 +17,7 @@ from dependent_todos.tui import (
 )
 from dependent_todos.models import Task
 from textual.containers import Container
+from textual.widgets import SelectionList
 
 
 def create_sample_task(
@@ -133,7 +134,13 @@ async def test_navigation_and_focus(temp_dir):
         app.tasks = {
             "task1": create_sample_task("task1", "Task 1"),
             "task2": create_sample_task("task2", "Task 2"),
-            "task3": create_sample_task("task3", "Task 3", status="done", started=datetime.now(), completed=datetime.now()),
+            "task3": create_sample_task(
+                "task3",
+                "Task 3",
+                status="done",
+                started=datetime.now(),
+                completed=datetime.now(),
+            ),
         }
         # Refresh the table and details with new tasks
         table = cast(TaskTable, pilot.app.query_one("#task-table"))
@@ -301,8 +308,8 @@ async def test_add_task_modal_with_dependencies(temp_dir):
         textarea.text = "New Task"
 
         # Select dependencies (task1)
-        from textual.widgets import SelectionList
-        selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
+
+        pilot.app.screen.query_one("#depends-on", SelectionList)
         # Select task1
         await pilot.click("#depends-on")
         await pilot.press("enter")  # Select first item
@@ -340,7 +347,7 @@ async def test_update_task_modal_with_dependencies(temp_dir):
         assert isinstance(pilot.app.screen, UpdateTaskModal)
 
         # Check that current dependencies are pre-selected
-        from textual.widgets import SelectionList
+
         selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
         # task1 should be selected (it's in task3's dependencies)
         assert "task1" in selection_list.selected
@@ -388,8 +395,8 @@ async def test_circular_dependency_detection(temp_dir):
         assert isinstance(pilot.app.screen, UpdateTaskModal)
 
         # Try to select task1 as dependency for task2
-        from textual.widgets import SelectionList
-        selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
+
+        pilot.app.screen.query_one("#depends-on", SelectionList)
         # This would create a cycle: task1 -> task2 -> task1
 
         # For now, just test that the modal opens correctly
@@ -405,8 +412,12 @@ async def test_toggle_tree_sidebar(temp_dir):
         # Add tasks with dependencies
         app.tasks = {
             "task1": create_sample_task("task1", "Root Task 1"),
-            "task2": create_sample_task("task2", "Task 2 depends on Task 1", dependencies=["task1"]),
-            "task3": create_sample_task("task3", "Task 3 depends on Task 2", dependencies=["task2"]),
+            "task2": create_sample_task(
+                "task2", "Task 2 depends on Task 1", dependencies=["task1"]
+            ),
+            "task3": create_sample_task(
+                "task3", "Task 3 depends on Task 2", dependencies=["task2"]
+            ),
         }
 
         # Refresh the table
@@ -455,7 +466,9 @@ async def test_tree_node_selection_updates_current_task(temp_dir):
         # Add tasks with dependencies
         app.tasks = {
             "task1": create_sample_task("task1", "Root Task 1"),
-            "task2": create_sample_task("task2", "Task 2 depends on Task 1", dependencies=["task1"]),
+            "task2": create_sample_task(
+                "task2", "Task 2 depends on Task 1", dependencies=["task1"]
+            ),
         }
 
         # Select task2 initially
@@ -537,7 +550,7 @@ async def test_tab_switch_clears_tree(temp_dir):
         assert count_nodes(tree.root) > 1  # More than just root
 
         # Switch to "Done" tab
-        tabs = cast(FocusableTabs, pilot.app.query_one("#filter-tabs"))
+        cast(FocusableTabs, pilot.app.query_one("#filter-tabs"))
         await pilot.press("tab")  # To Todo
         await pilot.press("tab")  # To Done
 
@@ -548,7 +561,6 @@ async def test_tab_switch_clears_tree(temp_dir):
 @pytest.mark.asyncio
 async def test_modal_select_fields_population(temp_dir):
     """Test that modal select fields populate with expected options."""
-    from textual.widgets import SelectionList
 
     app = DependentTodosApp()
     async with app.run_test() as pilot:

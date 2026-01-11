@@ -1,11 +1,10 @@
 """Textual TUI interface for dependent todos."""
 
-import logging
 from datetime import datetime
 from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import cast, Literal
-from textual.containers import Container, Horizontal, Grid
+from textual.containers import Container, Grid
 from textual.widgets import (
     Button,
     DataTable,
@@ -20,15 +19,17 @@ from textual.widgets import (
 )
 from textual.widgets.selection_list import Selection
 from textual.screen import ModalScreen
-from textual import events
+from textual import events, on
 
 from dependent_todos.config import get_config_path
-from dependent_todos.dependencies import detect_circular_dependencies, get_ready_tasks, topological_sort
+from dependent_todos.dependencies import (
+    detect_circular_dependencies,
+    get_ready_tasks,
+    topological_sort,
+)
 from dependent_todos.models import STATE_COLORS, Task
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
 from dependent_todos.utils import generate_unique_id
-
-logger = logging.getLogger(__name__)
 
 # UI Constants
 MAX_MESSAGE_DISPLAY_LENGTH = 50
@@ -42,9 +43,10 @@ TAB_FILTERS = ("all", "todo", "done", "pending")
 class FocusableTabs(Tabs):
     """Tabs widget that can be focused."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.can_focus = True
+    BINDINGS = Tabs.BINDINGS + [
+        ("shift+tab", "previous_tag", "Previous tab"),
+        ("tab", "next_tab", "Next tab"),
+    ]
 
 
 class TaskTable(DataTable):
@@ -305,6 +307,15 @@ class BaseModalScreen(ModalScreen):
         if event.button == 1 and event.control == self:
             self.dismiss()
 
+    @property
+    def cycle_selectors(self):
+        return {Button, Input, TextArea}
+
+    @property
+    def cycle_widgets(self):
+        """A query to get all widgets we can cycle with keybindings"""
+        return self.query(*self.cycle_selectors)
+
     def action_next_input(self) -> None:
         """Focus the next input field."""
         focusables = tuple(self.query("Input, TextArea").nodes)
@@ -348,23 +359,20 @@ class UpdateTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         options = []
         for task_id, task in app.tasks.items():
-            if task_id != self.task_id:  # Exclude self
-                state = task.compute_state(app.tasks)
-                display_text = f"{task_id}: {task.message} [{state}]"
-                # Pre-select current dependencies
-                selected = task_id in app.tasks[self.task_id].dependencies
-                options.append(Selection(display_text, task_id, selected))
-        logger.info(f"UpdateTaskModal: Found {len(options)} dependency options for task {self.task_id}")
-        if not options:
-            logger.warning(f"UpdateTaskModal: No dependency options available for task {self.task_id}. Total tasks: {len(app.tasks)}")
+            if task_id == self.task_id:  # Exclude self
+                continue
+            state = task.compute_state(app.tasks)
+            display_text = f"{task_id}: {task.message} [{state}]"
+            # Pre-select current dependencies
+            selected = task_id in app.tasks[self.task_id].dependencies
+            options.append(Selection(display_text, task_id, selected))
         return options
 
     def _get_depending_on_text(self) -> str:
         """Get text for tasks that depend on this task."""
         app = cast(DependentTodosApp, self.app)
         dependents = [
-            tid for tid, t in app.tasks.items()
-            if self.task_id in t.dependencies
+            tid for tid, t in app.tasks.items() if self.task_id in t.dependencies
         ]
         if not dependents:
             return "None"
@@ -385,9 +393,7 @@ class UpdateTaskModal(BaseModalScreen):
         yield TextArea(task.message, classes="task-message")
         yield Static("Depends on:", classes="depends-on-label")
         yield SelectionList[str](
-            *self._get_dependency_options(),
-            classes="depends-on-list",
-            id="depends-on"
+            *self._get_dependency_options(), classes="depends-on-list", id="depends-on"
         )
         yield Static("Depending on:", classes="depending-on-label")
         yield Static(self._get_depending_on_text(), classes="depending-on-list")
@@ -413,9 +419,13 @@ class UpdateTaskModal(BaseModalScreen):
         selected_deps = list(selection_list.selected)
 
         # Validate for circular dependencies
-        circular_deps = detect_circular_dependencies(self.task_id, selected_deps, app.tasks)
+        circular_deps = detect_circular_dependencies(
+            self.task_id, selected_deps, app.tasks
+        )
         if circular_deps:
-            self.notify(f"Circular dependency detected with: {', '.join(circular_deps)}")
+            self.notify(
+                f"Circular dependency detected with: {', '.join(circular_deps)}"
+            )
             return
 
         task.message = message
@@ -466,9 +476,6 @@ class AddTaskModal(BaseModalScreen):
             state = task.compute_state(app.tasks)
             display_text = f"{task_id}: {task.message} [{state}]"
             options.append(Selection(display_text, task_id))
-        logger.info(f"AddTaskModal: Found {len(options)} dependency options. Total tasks: {len(app.tasks)}")
-        if not options:
-            logger.warning("AddTaskModal: No dependency options available - no tasks exist")
         return options
 
     def get_content(self) -> ComposeResult:
@@ -476,9 +483,7 @@ class AddTaskModal(BaseModalScreen):
         yield TextArea(placeholder="Task message", classes="task-message")
         yield Static("Depends on:", classes="depends-on-label")
         yield SelectionList[str](
-            *self._get_dependency_options(),
-            classes="depends-on-list",
-            id="depends-on"
+            *self._get_dependency_options(), classes="depends-on-list", id="depends-on"
         )
 
     def on_mount(self) -> None:
@@ -510,7 +515,9 @@ class AddTaskModal(BaseModalScreen):
         # Validate for circular dependencies
         circular_deps = detect_circular_dependencies(task_id, selected_deps, app.tasks)
         if circular_deps:
-            self.notify(f"Circular dependency detected with: {', '.join(circular_deps)}")
+            self.notify(
+                f"Circular dependency detected with: {', '.join(circular_deps)}"
+            )
             return
 
         task = Task(
@@ -527,6 +534,10 @@ class AddTaskModal(BaseModalScreen):
         self.dismiss()
 
 
+class Sidebar(Container):
+    pass
+
+
 class DependentTodosApp(App):
     """Main Textual application for dependent todos."""
 
@@ -535,12 +546,10 @@ class DependentTodosApp(App):
         ("r", "refresh", "Refresh"),
         ("y", "ready_tasks", "Show ready"),
         ("o", "show_order", "Show order"),
-        ("e", "update_task", "Update selected task"),
-        ("d", "delete_task", "Delete selected task"),
+        ("e", "update_task", "Update selected"),
+        ("d", "delete_task", "Delete selected"),
         ("m", "mark_done", "Mark task done"),
         ("t", "toggle_tree", "Toggle tree"),
-        ("tab", "next_tab", "Next tab"),
-        ("shift+tab", "previous_tab", "Previous tab"),
     ]
 
     CSS_PATH = "styles.css"
@@ -557,58 +566,84 @@ class DependentTodosApp(App):
         """Compose the UI."""
         yield Header()
 
-        with Horizontal():
-            with Container(id="sidebar"):
-                tree = DependencyTree(self.tasks, root_task_id=self.current_task_id)
-                tree.id = "dep-tree"
-                tree.can_focus = True
-                yield tree
-            with Container(id="main-content"):
-                yield FocusableTabs("All", "Todo", "Done", "Pending", id="filter-tabs")
-                yield TaskTable(
-                    self.tasks, filter_state=self.current_filter, id="task-table"
-                )
-                yield TaskDetails(id="task-details")
+        with Sidebar(id="sidebar"):
+            tree = DependencyTree(self.tasks, root_task_id=self.current_task_id)
+            tree.id = "dep-tree"
+            yield tree
+        with Container(id="main-content"):
+            yield FocusableTabs("All", "Todo", "Done", "Pending", id="filter-tabs")
+            yield TaskTable(
+                self.tasks,
+                filter_state=self.current_filter,
+                id="task-table",
+                cursor_type="row",
+            )
+            yield TaskDetails(id="task-details")
 
         yield Footer()
 
     def on_mount(self) -> None:
         """Initialize the UI after mounting."""
         sidebar = self.query_one("#sidebar", Container)
-        sidebar.visible = False
+        sidebar.display = False
+        self.task_table.focus()
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+    @property
+    def task_table(self) -> TaskTable:
+        return self.query_one("#task-table", TaskTable)
+
+    @on(DataTable.RowHighlighted)
+    def handle_data_table_row_selected(self, event: DataTable.RowHighlighted) -> None:
         """Handle task selection in the table."""
-        table = self.query_one("#task-table", TaskTable)
+        table = self.task_table
         row_key = event.row_key
-        if row_key is not None:
-            task_id = table.get_row(row_key)[0]
-            self.current_task_id = task_id
-            details = self.query_one("#task-details", TaskDetails)
-            details.update_task(task_id, self.tasks)
-            # Refresh tree if visible
-            sidebar = self.query_one("#sidebar", Container)
-            if sidebar.visible:
-                tree = self.query_one("#dep-tree", DependencyTree)
-                tree.root_task_id = self.current_task_id
-                tree._build_tree()
-                tree.refresh()
+        if row_key is None:
+            return
+        task_id = table.get_row(row_key)[0]
+        self.current_task_id = task_id
+        details = self.query_one("#task-details", TaskDetails)
+        details.update_task(task_id, self.tasks)
+        # Refresh tree if visible
+        sidebar = self.query_one("#sidebar", Container)
+        if sidebar.display:
+            tree = self.query_one("#dep-tree", DependencyTree)
+            tree.root_task_id = self.current_task_id
+            tree._build_tree()
+            tree.refresh()
 
-    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+    @property
+    def dep_tree(self):
+        return self.query_one("#dep-tree", DependencyTree)
+
+    @property
+    def sidebar(self):
+        return self.query_one(Sidebar)
+
+    @property
+    def task_details(self):
+        return self.query_one("#task-details", TaskDetails)
+
+    @property
+    def filter_tabs(self):
+        return self.query_one("#filter-tabs", FocusableTabs)
+
+    @on(DependencyTree.NodeSelected)
+    def handle_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handle task selection in the tree."""
-        tree = self.query_one("#dep-tree", DependencyTree)
-        if event.node != tree.root:
-            # Extract task_id from node label (format: "task_id: message [state]")
-            label = str(event.node.label)
-            task_id = label.split(":")[0].strip()
-            if task_id in self.tasks:
-                self.current_task_id = task_id
-                details = self.query_one("#task-details", TaskDetails)
-                details.update_task(task_id, self.tasks)
-                # Rebuild tree centered on selected task
-                tree.root_task_id = self.current_task_id
-                tree._build_tree()
-                tree.refresh()
+        tree = self.dep_tree
+        if event.node == tree.root:
+            return
+        # Extract task_id from node label (format: "task_id: message [state]")
+        label = str(event.node.label)
+        task_id = label.split(":")[0].strip()
+        if task_id in self.tasks:
+            self.current_task_id = task_id
+            details = self.task_details
+            details.update_task(task_id, self.tasks)
+            # Rebuild tree centered on selected task
+            tree.root_task_id = self.current_task_id
+            tree._build_tree()
+            tree.refresh()
 
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         """Handle filter tab change."""
@@ -651,10 +686,10 @@ class DependentTodosApp(App):
         try:
             save_tasks_to_file(self.tasks, self.config_path)
             self.action_refresh()
-            # Refresh tree if visible
-            sidebar = self.query_one("#sidebar", Container)
-            if sidebar.visible:
-                tree = self.query_one("#dep-tree", DependencyTree)
+            # Refresh tree if display
+            sidebar = self.sidebar
+            if sidebar.display:
+                tree = self.dep_tree
                 tree.tasks = self.tasks
                 tree._build_tree()
                 tree.refresh()
@@ -665,9 +700,9 @@ class DependentTodosApp(App):
         """Refresh the task data."""
         try:
             self.tasks = load_tasks_from_file(self.config_path)
-            table = self.query_one("#task-table", TaskTable)
+            table = self.task_table
             table.refresh_data(self.tasks)
-            details = self.query_one("#task-details", TaskDetails)
+            details = self.task_details
             details.tasks = self.tasks
             details.refresh()
         except Exception as e:
@@ -688,141 +723,48 @@ class DependentTodosApp(App):
         """Show topological execution order."""
         try:
             ordered = topological_sort(self.tasks)
-            details = self.query_one("#task-details", TaskDetails)
+            details = self.task_details
             details.show_order(ordered)
         except ValueError as e:
             self.notify(f"Error: {e}")
 
     def action_toggle_tree(self) -> None:
         """Toggle the dependency tree sidebar."""
-        sidebar = self.query_one("#sidebar", Container)
-        if not sidebar.visible:
+        sidebar = self.sidebar
+        if not sidebar.display:
             if self.current_task_id:
                 # Show sidebar and refresh tree
-                sidebar.visible = True
-                tree = self.query_one("#dep-tree", DependencyTree)
+                sidebar.display = True
+                tree = self.dep_tree
                 tree.tasks = self.tasks
                 tree.root_task_id = self.current_task_id
                 tree._build_tree()
                 tree.refresh()
-                self.notify("Dependency tree shown")
+                tree.root.expand_all()
             else:
                 self.notify("No task selected")
         else:
             # Hide sidebar
-            sidebar.visible = False
-            tree = self.query_one("#dep-tree", DependencyTree)
+            sidebar.display = False
+            tree = self.dep_tree
             tree.root.remove_children()
             tree.refresh()
-            self.notify("Dependency tree hidden")
-
-    def action_next_tab(self) -> None:
-        """Switch to the next filter tab."""
-        tabs = self.query_one("#filter-tabs", FocusableTabs)
-        # Cycle through tabs using the tab index
-        current_filter = self.current_filter
-        if current_filter in TAB_FILTERS:
-            current_index = TAB_FILTERS.index(current_filter)
-            next_index = (current_index + 1) % len(TAB_FILTERS)
-            # Query all tab widgets and get their IDs
-            all_tabs = list(tabs.query("Tab"))
-            if next_index < len(all_tabs):
-                tabs.active = all_tabs[next_index].id or ""
-                self._update_filter_from_tab()
-
-    def action_previous_tab(self) -> None:
-        """Switch to the previous filter tab."""
-        tabs = self.query_one("#filter-tabs", FocusableTabs)
-        # Cycle through tabs using the tab index
-        current_filter = self.current_filter
-        if current_filter in TAB_FILTERS:
-            current_index = TAB_FILTERS.index(current_filter)
-            prev_index = (current_index - 1) % len(TAB_FILTERS)
-            # Query all tab widgets and get their IDs
-            all_tabs = list(tabs.query("Tab"))
-            if prev_index < len(all_tabs):
-                tabs.active = all_tabs[prev_index].id or ""
-                self._update_filter_from_tab()
-
-    def action_focus_next(self) -> None:
-        """Switch focus to the next widget."""
-        focusables = (self.query_one("#filter-tabs"), self.query_one("#task-table"))
-        current = self.focused
-        if current in focusables:
-            index = focusables.index(current)
-            next_index = (index + 1) % len(focusables)
-            self.set_focus(focusables[next_index])
-        else:
-            self.set_focus(focusables[0])
-
-    def action_focus_previous(self) -> None:
-        """Switch focus to the previous widget."""
-        focusables = (self.query_one("#filter-tabs"), self.query_one("#task-table"))
-        current = self.focused
-        if current in focusables:
-            index = focusables.index(current)
-            prev_index = (index - 1) % len(focusables)
-            self.set_focus(focusables[prev_index])
-        else:
-            self.set_focus(focusables[-1])
 
     def _update_filter_from_tab(self) -> None:
         """Update the current filter and table based on active tab."""
-        tabs = self.query_one("#filter-tabs", FocusableTabs)
+        tabs = self.filter_tabs
         if tabs.active_tab is not None:
             self.current_filter = str(tabs.active_tab.label.plain).lower()
-            table = self.query_one("#task-table", TaskTable)
+            table = self.task_table
             table.filter_state = self.current_filter
             table._populate_table()
-            # Clear tree if visible to avoid showing stale dependencies
-            sidebar = self.query_one("#sidebar", Container)
-            if sidebar.visible:
-                tree = self.query_one("#dep-tree", DependencyTree)
+            # Clear tree if display to avoid showing stale dependencies
+            sidebar = self.sidebar
+            if sidebar.display:
+                tree = self.dep_tree
+                # TODO: check if recompose does the trick here in refresh
                 tree.root.remove_children()
                 tree.refresh()
-
-    def on_key(self, event: events.Key) -> None:
-        """Handle key presses."""
-        if event.key == "tab":
-            event.prevent_default()
-            self.action_next_tab()
-        elif event.key == "shift+tab":
-            event.prevent_default()
-            self.action_previous_tab()
-        elif event.key == "up":
-            table = cast(TaskTable, self.query_one("#task-table"))
-            if table.has_focus:
-                event.prevent_default()
-                if table.rows:
-                    new_row = max(0, table.cursor_row - 1)
-                    table.move_cursor(row=new_row)
-                    row_keys = list(table.rows.keys())
-                    if 0 <= new_row < len(row_keys):
-                        row_key = row_keys[new_row]
-                        task_id = table.get_row(row_key)[0]
-                        self.current_task_id = task_id
-                        details = self.query_one("#task-details", TaskDetails)
-                        details.update_task(task_id, self.tasks)
-            else:
-                self.action_focus_previous()
-                event.prevent_default()
-        elif event.key == "down":
-            table = cast(TaskTable, self.query_one("#task-table"))
-            if table.has_focus:
-                event.prevent_default()
-                if table.rows:
-                    new_row = min(len(table.rows) - 1, table.cursor_row + 1)
-                    table.move_cursor(row=new_row)
-                    row_keys = list(table.rows.keys())
-                    if 0 <= new_row < len(row_keys):
-                        row_key = row_keys[new_row]
-                        task_id = table.get_row(row_key)[0]
-                        self.current_task_id = task_id
-                        details = self.query_one("#task-details", TaskDetails)
-                        details.update_task(task_id, self.tasks)
-            else:
-                self.action_focus_next()
-                event.prevent_default()
 
 
 def run_tui():

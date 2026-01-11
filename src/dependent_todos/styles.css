@@ -86,3 +86,8 @@ DeleteTaskModal {
     column-span: 4;
   }
 }
+
+Sidebar {
+  display: none;
+  dock: left;
+}
