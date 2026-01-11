@@ -174,7 +174,7 @@ def ready(ctx: click.Context) -> None:
     config_path = ctx.obj["config_path"]
     tasks = load_tasks_from_file(config_path)
 
-    ready_tasks = tasks.get_ready_tasks()
+    ready_tasks = tasks.get_pending_tasks()
 
     if not ready_tasks:
         click.echo("No tasks are ready to work on.")

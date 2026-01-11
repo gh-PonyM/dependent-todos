@@ -711,7 +711,7 @@ class DependentTodosApp(App):
 
     def action_show_ready(self) -> None:
         """Show ready tasks."""
-        ready_tasks = self.tasks.get_ready_tasks()
+        ready_tasks = self.tasks.get_pending_tasks()
         if ready_tasks:
             task_list = "\n".join(
                 f"• {tid}: {self.tasks[tid].message}" for tid in ready_tasks

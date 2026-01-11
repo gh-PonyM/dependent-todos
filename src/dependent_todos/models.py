@@ -124,7 +124,7 @@ class TaskList(RootModel):
         ts = TopologicalSorter(graph)
         return list(ts.static_order())
 
-    def get_ready_tasks(self) -> list[str]:
+    def get_pending_tasks(self) -> list[str]:
         """Get tasks that are ready to work on (all dependencies completed).
 
         Returns:
