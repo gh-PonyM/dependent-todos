@@ -34,9 +34,6 @@ MAX_MESSAGE_DISPLAY_LENGTH = 50
 TRUNCATION_SUFFIX = "..."
 MESSAGE_TRUNCATE_LENGTH = MAX_MESSAGE_DISPLAY_LENGTH - len(TRUNCATION_SUFFIX)
 
-# Tab filter states (must match tab labels in lowercase)
-TAB_FILTERS = ("all", "todo", "done", "pending", "ready")
-
 
 class FocusableTabs(Tabs):
     """Tabs widget that can be focused."""
@@ -602,7 +599,7 @@ class DependentTodosApp(App):
             yield tree
         with Container(id="main-content"):
             yield FocusableTabs(
-                "All", "Todo", "Done", "Pending", "Ready", id="filter-tabs"
+                "All", "Ready", "Todo", "Done", "Pending", id="filter-tabs"
             )
             yield TaskTable(
                 self.tasks,
@@ -796,11 +793,11 @@ class DependentTodosApp(App):
                 tree.refresh(recompose=True)
 
 
-def run_tui():
+def run():
     """Run the Textual TUI application."""
     app = DependentTodosApp()
     app.run()
 
 
 if __name__ == "__main__":
-    run_tui()
+    run()

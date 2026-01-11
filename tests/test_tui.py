@@ -163,6 +163,13 @@ async def test_navigation_and_focus(temp_dir):
 
         # Press Tab to next tab
         await pilot.press("tab")
+        assert tabs.active_tab.label.plain == "Ready"
+        assert app_instance.current_filter == "ready"
+        assert (
+            table.row_count == 1
+        )  # task1 is ready (pending and not blocked), task2 is blocked
+
+        await pilot.press("tab")
         assert tabs.active_tab.label.plain == "Todo"
         assert app_instance.current_filter == "todo"
         assert table.row_count == 2  # task1 and task2 are todo (pending state)
@@ -178,14 +185,6 @@ async def test_navigation_and_focus(temp_dir):
         assert tabs.active_tab.label.plain == "Pending"
         assert app_instance.current_filter == "pending"
         assert table.row_count == 2  # task1 and task2 are pending/blocked/in-progress
-
-        # Press Tab again
-        await pilot.press("tab")
-        assert tabs.active_tab.label.plain == "Ready"
-        assert app_instance.current_filter == "ready"
-        assert (
-            table.row_count == 1
-        )  # task1 is ready (pending and not blocked), task2 is blocked
 
         # Press Tab again to wrap around
         await pilot.press("tab")

@@ -24,7 +24,6 @@ This repository contains a command-line and textual user interface (TUI) tool fo
 
 ## Project Structure
 - `src/dependent_todos/`: Main package
-  - `main.py`: CLI commands and entry point
   - `models.py`: Pydantic models for Task and TaskList
   - `tui.py`: Textual TUI implementation
   - `storage.py`: File I/O operations
@@ -34,18 +33,6 @@ This repository contains a command-line and textual user interface (TUI) tool fo
 - `plan/`: Development planning documents
 - `pyproject.toml`: Project configuration with uv
 - `README.md`: Basic documentation
-
-## CLI Commands
-- `list`: Display all tasks in a table
-- `tree`: Show dependency tree visualization
-- `ready`: Show tasks ready to work on
-- `order`: Display topological execution order
-- `show`: Detailed task information
-- `add`: Create new tasks with dependencies
-- `modify`: Update existing tasks
-- `done`: Mark tasks as completed
-- `remove`: Delete tasks
-- `tui`: Launch the Textual interface
 
 ## Development
 - Uses `uv` for dependency management and running
