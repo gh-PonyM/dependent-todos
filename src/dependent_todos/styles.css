@@ -27,9 +27,9 @@ Button {
 }
 
 /* Modal styles */
-$title_height: 2;
-$footer_height: 3;
-$content_height: 7;
+$title_height: 1;
+$footer_height: 2;
+$content_height: 2;
 
 BaseModalScreen {
   align: center middle;
@@ -70,7 +70,25 @@ BaseModalScreen {
      row-span: $content_height;
      margin-left: 1;
      text-style: bold;
-  }
+   }
+}
+
+/* New styles for dependency selection elements */
+.depends-on-label {
+  column-span: 4;  /* Span full width */
+  row-span: 1;
+}
+.depends-on-list {
+  column-span: 4;  /* Span full width */
+  row-span: 2;  /* Dedicated rows for the selection list */
+}
+.depending-on-label {
+  column-span: 4;  /* Span full width */
+  row-span: 1;
+}
+.depending-on-list {
+  column-span: 4;  /* Span full width */
+  row-span: 1;
 }
 
 DeleteTaskModal {

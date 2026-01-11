@@ -1,7 +1,6 @@
 """Textual TUI interface for dependent todos."""
 
 from datetime import datetime
-from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import cast, Literal
 
@@ -53,6 +52,20 @@ def truncate(message: str):
     return message
 
 
+def fmt_state(status, text: str = None):
+    return f"[{STATE_COLORS[status]}]{text or status}[/{STATE_COLORS[status]}]"
+
+
+def get_status_display(task: Task, tasks: TaskList) -> str:
+    """Generate colorized status display with state in brackets if different."""
+    state = tasks.get_task_state(task)
+    return (
+        fmt_state(task.status)
+        if task.status == state
+        else f"{fmt_state(task.status)} [{fmt_state(state, state)}]"
+    )
+
+
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
@@ -72,9 +85,6 @@ class TaskTable(DataTable):
         if not self.tasks:
             return
 
-        # Use task.status colors from constants
-        state_colors = STATE_COLORS
-
         # Filter tasks
         filtered_tasks = {}
         for task_id, task in self.tasks.items():
@@ -91,13 +101,13 @@ class TaskTable(DataTable):
                     filtered_tasks[task_id] = task
 
         for task_id, task in sorted(filtered_tasks.items()):
-            state_text = Text(task.status, style=state_colors.get(task.status, "white"))
+            combined_status = get_status_display(task, self.tasks)
 
             # Truncate message if too long
             message = task.message
             message = truncate(message)
 
-            self.add_row(task_id, state_text.plain, message)
+            self.add_row(task_id, combined_status, message)
 
     def refresh_data(self, tasks: TaskList):
         """Refresh the table with new task data."""
@@ -146,7 +156,8 @@ class DependencyTree(Tree):
             return
 
         task = self.tasks[task_id]
-        node = parent_node.add(f"{task_id}: {task.message} [{task.status}]")
+        state = self.tasks.get_task_state(task)
+        node = parent_node.add(f"{task_id}: {task.message} [{state}]")
 
         # Add dependency nodes
         for dep_id in task.dependencies:
@@ -198,8 +209,10 @@ class TaskDetails(Static):
             return "Select a task to view details"
 
         task = self.tasks[self.task_id]
+        state = self.tasks.get_task_state(task)
         details = f"""[bold cyan]ID:[/bold cyan] {task.id}
-[bold cyan]Status:[/bold cyan] {task.status}
+[bold cyan]Status:[/bold cyan] [{STATE_COLORS[task.status]}]{task.status}[/{STATE_COLORS[task.status]}]
+[bold cyan]State:[/bold cyan] [{STATE_COLORS[state]}]{state}[/{STATE_COLORS[state]}]
 [bold cyan]Created:[/bold cyan] {task.created}
 [bold cyan]Started:[/bold cyan] {task.started or "-"}
 [bold cyan]Completed:[/bold cyan] {task.completed or "-"}
@@ -213,7 +226,7 @@ class TaskDetails(Static):
             for dep_id in task.dependencies:
                 dep_task = self.tasks.get(dep_id)
                 if dep_task:
-                    dep_state = dep_task.status
+                    dep_state = self.tasks.get_task_state(dep_task)
                     details += f"  • {dep_id} [{STATE_COLORS[dep_state]}]{dep_state}[/{STATE_COLORS[dep_state]}]: {dep_task.message}\n"
                 else:
                     details += f"  • {dep_id} [not found]\n"
@@ -228,7 +241,7 @@ class TaskDetails(Static):
             for dep_id in dependents:
                 dep_task = self.tasks.get(dep_id)
                 if dep_task:
-                    dep_state = dep_task.status
+                    dep_state = self.tasks.get_task_state(dep_task)
                     details += f"  • {dep_id} [{STATE_COLORS[dep_state]}]{dep_state}[/{STATE_COLORS[dep_state]}]: {dep_task.message}\n"
         else:
             details += "  None\n"
@@ -360,14 +373,18 @@ class UpdateTaskModal(BaseModalScreen):
         """Get available tasks for dependency selection."""
         app = cast(DependentTodosApp, self.app)
         options = []
+        current_deps = app.tasks[self.task_id].dependencies
         for task_id, task in app.tasks.items():
             if task_id == self.task_id:  # Exclude self
                 continue
-            if task.status == "done":  # Exclude done tasks
+            if (
+                task.status == "done" and task_id not in current_deps
+            ):  # Exclude done tasks unless they are current dependencies
                 continue
-            display_text = f"{task_id}: {task.message} [{task.status}]"
+            state = app.tasks.get_task_state(task)
+            display_text = f"{task_id}: {task.message} [{state}]"
             # Pre-select current dependencies
-            selected = task_id in app.tasks[self.task_id].dependencies
+            selected = task_id in current_deps
             options.append(Selection(display_text, task_id, selected))
         return options
 
@@ -478,7 +495,8 @@ class AddTaskModal(BaseModalScreen):
         for task_id, task in app.tasks.items():
             if task.status == "done":  # Exclude done tasks
                 continue
-            display_text = f"{task_id}: {task.message} [{task.status}]"
+            state = app.tasks.get_task_state(task)
+            display_text = f"{task_id}: {task.message} [{state}]"
             options.append(Selection(display_text, task_id))
         return options
 

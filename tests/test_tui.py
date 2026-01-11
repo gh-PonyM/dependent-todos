@@ -231,8 +231,10 @@ async def test_navigation_and_focus(temp_dir):
         assert textarea.text == "Task 1"  # current message of task1
         # Edit the message
         textarea.text = "Updated Task 1"
-        # Click the ok button to save
-        await pilot.click("#ok")
+        # Tab to ok button and press enter
+        await pilot.press("tab")  # to selection list
+        await pilot.press("tab")  # to ok button
+        await pilot.press("enter")
         # Should be back to main screen
         assert not isinstance(pilot.app.screen, UpdateTaskModal)
         # Check table has updated message
@@ -332,6 +334,7 @@ async def test_add_task_modal_with_dependencies(temp_dir):
 async def test_update_task_modal_with_dependencies(temp_dir):
     """Test updating a task with dependency changes."""
     app = DependentTodosApp()
+    app.config_path = temp_dir / "tasks.toml"
     async with app.run_test() as pilot:
         # Add some existing tasks
         app.tasks = TaskList(
@@ -368,8 +371,10 @@ async def test_update_task_modal_with_dependencies(temp_dir):
         # Select task2
         # This is complex to test with the current setup, so let's just test the basic update
 
-        # Click OK to update
-        await pilot.click("#ok")
+        # Tab to ok button and press enter
+        await pilot.press("tab")  # to selection list
+        await pilot.press("tab")  # to ok button
+        await pilot.press("enter")
 
         # Should be back to main screen
         assert not isinstance(pilot.app.screen, UpdateTaskModal)
@@ -574,6 +579,9 @@ async def test_modal_select_fields_population(temp_dir):
                 "task1": create_sample_task("task1", "Task 1"),
                 "task2": create_sample_task("task2", "Task 2", status="done"),
                 "task3": create_sample_task("task3", "Task 3", dependencies=["task1"]),
+                "task4": create_sample_task(
+                    "task4", "Task 4", dependencies=["task2"]
+                ),  # depends on done task
             }
         )
 
@@ -581,8 +589,8 @@ async def test_modal_select_fields_population(temp_dir):
         await pilot.press("a")
         assert isinstance(pilot.app.screen, AddTaskModal)
         selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
-        # Should have 2 options (exclude done task2)
-        assert len(selection_list._options) == 2
+        # Should have 3 options (exclude done task2)
+        assert len(selection_list._options) == 3
         await pilot.press("escape")
 
         # Test UpdateTaskModal options for task3
@@ -590,8 +598,52 @@ async def test_modal_select_fields_population(temp_dir):
         await pilot.press("e")
         assert isinstance(pilot.app.screen, UpdateTaskModal)
         selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
-        # Should have 1 option (exclude self task3 and done task2)
-        assert len(selection_list._options) == 1
+        # Should have 2 options (exclude self task3 and done task2)
+        assert len(selection_list._options) == 2
         # task1 should be selected
         assert "task1" in selection_list.selected
+        await pilot.press("escape")
+
+        # Test UpdateTaskModal options for task4 (depends on done task2)
+        app.current_task_id = "task4"
+        await pilot.press("e")
+        assert isinstance(pilot.app.screen, UpdateTaskModal)
+        selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
+        # Should have 3 options: task1, task2 (done but current dep), task3
+        assert len(selection_list._options) == 3
+        # task2 should be selected (it's a current dependency even though done)
+        assert "task2" in selection_list.selected
+        await pilot.press("escape")
+
+
+@pytest.mark.asyncio
+async def test_update_modal_includes_done_dependencies(temp_dir):
+    """Test that UpdateTaskModal includes done tasks that are current dependencies."""
+    app = DependentTodosApp()
+    async with app.run_test() as pilot:
+        # Add tasks: task1 is done, task2 depends on task1
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1", status="done"),
+                "task2": create_sample_task("task2", "Task 2", dependencies=["task1"]),
+                "task3": create_sample_task("task3", "Task 3"),  # Another pending task
+            }
+        )
+
+        # Select task2 for editing
+        app.current_task_id = "task2"
+
+        # Open update modal
+        await pilot.press("e")
+        assert isinstance(pilot.app.screen, UpdateTaskModal)
+
+        selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
+        # Should have 2 options: task1 (done but current dependency) and task3 (pending)
+        assert len(selection_list._options) == 2
+
+        # task1 should be selected (it's a current dependency)
+        assert "task1" in selection_list.selected
+        # task3 should not be selected
+        assert "task3" not in selection_list.selected
+
         await pilot.press("escape")
