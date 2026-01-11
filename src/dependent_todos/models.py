@@ -12,7 +12,8 @@ from pydantic import BaseModel, Field, RootModel
 
 from dependent_todos.constants import TASK_ID_MAX_LEN, TASK_ID_RE_PATT
 
-StatusT = Literal["pending", "done", "blocked", "cancelled", "in-progress"]
+StatusT = Literal["pending", "done", "cancelled", "in-progress"]
+DynamicStatusT = Literal["pending", "done", "cancelled", "in-progress", "blocked"]
 
 
 class Task(BaseModel):
@@ -198,7 +199,7 @@ class TaskList(RootModel):
         with open(file_path, "wb") as f:
             tomli_w.dump(tasks_data, f)
 
-    def get_task_state(self, task: Task) -> StatusT:
+    def get_task_state(self, task: Task) -> DynamicStatusT:
         """Compute the runtime state from stored fields and dependencies.
 
         Args:
