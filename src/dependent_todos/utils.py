@@ -41,6 +41,9 @@ def generate_unique_id(
 ) -> str:
     """Generate a unique slug ID from a message.
 
+    Truncates at word boundaries when max_length is exceeded, ensuring
+    complete words are preserved rather than cutting words in the middle.
+
     Args:
         message: Task message to generate ID from
         existing_ids: Set of existing task IDs to avoid conflicts
@@ -49,9 +52,47 @@ def generate_unique_id(
     Returns:
         Unique slug ID
     """
-    # TODO: rewrite this in a way that a max length is given but: define split chars, and return only complete chunks of a word/split.
-    # A part of a split should not be added truncated
-    base_slug = slugify(message, max_length)
+    # First, create a full slug without length limit
+    full_slug = slugify(message)
+
+    # Handle empty slug case
+    if not full_slug:
+        full_slug = "task"
+
+    # If it fits and is unique, return it
+    if len(full_slug) <= max_length and full_slug not in existing_ids:
+        return full_slug
+
+    # Need to truncate, but respect word boundaries
+    # Split by hyphens (word boundaries in slugs)
+    parts = full_slug.split("-")
+
+    # Build slug by adding complete parts until we hit the limit
+    result_parts = []
+    current_length = 0
+
+    for part in parts:
+        # Calculate length if we add this part (+1 for hyphen, except for first part)
+        additional_length = len(part) + (1 if result_parts else 0)
+
+        if current_length + additional_length <= max_length:
+            result_parts.append(part)
+            current_length += additional_length
+        else:
+            break
+
+    # If no parts fit, take as much of the first part as possible
+    if not result_parts:
+        base_slug = parts[0][:max_length] if parts else "task"
+    else:
+        base_slug = "-".join(result_parts)
+
+    # Ensure we don't end with a hyphen
+    base_slug = base_slug.rstrip("-")
+
+    # If still empty, use a fallback
+    if not base_slug:
+        base_slug = "task"
 
     if base_slug not in existing_ids:
         return base_slug
@@ -61,8 +102,27 @@ def generate_unique_id(
     while True:
         candidate = f"{base_slug}-{counter}"
         if len(candidate) > max_length:
-            # Truncate base_slug to make room for counter
-            base_slug = base_slug[: max_length - len(str(counter)) - 1]
+            # Truncate base_slug to make room for counter, but respect word boundaries
+            available_length = max_length - len(str(counter)) - 1
+            if available_length > 0:
+                # Re-apply word boundary truncation to the available length
+                truncated_parts = []
+                temp_length = 0
+                for part in parts:
+                    additional_length = len(part) + (1 if truncated_parts else 0)
+                    if temp_length + additional_length <= available_length:
+                        truncated_parts.append(part)
+                        temp_length += additional_length
+                    else:
+                        break
+                if truncated_parts:
+                    base_slug = "-".join(truncated_parts).rstrip("-")
+                else:
+                    base_slug = parts[0][:available_length] if parts else "task"
+                if not base_slug:
+                    base_slug = "task"
+            else:
+                base_slug = "task"
             candidate = f"{base_slug}-{counter}"
 
         if candidate not in existing_ids:
