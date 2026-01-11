@@ -40,3 +40,7 @@ fix = true
 
 [tool.ruff.lint]
 select = ["UP", "F"]
+
+[tool.pyright]
+typeCheckingMode = "basic"
+reportCallIssue = "none"
