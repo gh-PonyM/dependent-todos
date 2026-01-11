@@ -23,11 +23,7 @@ from textual import events, on
 
 from dependent_todos.config import get_config_path
 from dependent_todos.constants import STATE_COLORS
-from dependent_todos.dependencies import (
-    detect_circular_dependencies,
-    get_ready_tasks,
-    topological_sort,
-)
+
 from dependent_todos.models import Task, TaskList
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
 from dependent_todos.utils import generate_unique_id
@@ -421,8 +417,8 @@ class UpdateTaskModal(BaseModalScreen):
         selected_deps = list(selection_list.selected)
 
         # Validate for circular dependencies
-        circular_deps = detect_circular_dependencies(
-            self.task_id, selected_deps, app.tasks
+        circular_deps = app.tasks.detect_circular_dependencies(
+            self.task_id, selected_deps
         )
         if circular_deps:
             self.notify(
@@ -515,7 +511,7 @@ class AddTaskModal(BaseModalScreen):
         selected_deps = list(selection_list.selected)
 
         # Validate for circular dependencies
-        circular_deps = detect_circular_dependencies(task_id, selected_deps, app.tasks)
+        circular_deps = app.tasks.detect_circular_dependencies(task_id, selected_deps)
         if circular_deps:
             self.notify(
                 f"Circular dependency detected with: {', '.join(circular_deps)}"
@@ -714,7 +710,7 @@ class DependentTodosApp(App):
 
     def action_show_ready(self) -> None:
         """Show ready tasks."""
-        ready_tasks = get_ready_tasks(self.tasks)
+        ready_tasks = self.tasks.get_ready_tasks()
         if ready_tasks:
             task_list = "\n".join(
                 f"• {tid}: {self.tasks[tid].message}" for tid in ready_tasks
@@ -726,10 +722,10 @@ class DependentTodosApp(App):
     def action_show_order(self) -> None:
         """Show topological execution order."""
         try:
-            ordered = topological_sort(self.tasks)
+            ordered = self.tasks.topological_sort()
             details = self.task_details
             details.show_order(ordered)
-        except ValueError as e:
+        except Exception as e:
             self.notify(f"Error: {e}")
 
     def action_toggle_tree(self) -> None:

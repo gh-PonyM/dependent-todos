@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Literal
+from graphlib import TopologicalSorter
 
 from pydantic import BaseModel, Field
 
@@ -42,6 +43,109 @@ class TaskList(dict[str, Task]):
 
     def __init__(self, tasks: dict[str, Task] | None = None):
         super().__init__(tasks or {})
+
+    def detect_circular_dependencies(
+        self, task_id: str, dependencies: list[str]
+    ) -> list[str]:
+        """Detect circular dependencies in the dependency graph.
+
+        Args:
+            task_id: ID of the task being checked
+            dependencies: List of dependency IDs for this task
+
+        Returns:
+            List of task IDs that would create a circular dependency, empty if none
+        """
+        from graphlib import CycleError
+
+        # Build the dependency graph including the new task
+        graph = {tid: task.dependencies for tid, task in self.items()}
+        graph[task_id] = dependencies
+
+        ts = TopologicalSorter(graph)
+        try:
+            # Attempt to prepare the graph (this checks for cycles)
+            ts.prepare()
+            return []  # No cycles detected
+        except CycleError:
+            # Could parse the error message to identify specific cycle
+            # For now, return the dependencies that caused the issue
+            return dependencies
+
+    def topological_sort(self) -> list[str]:
+        """Perform topological sort on tasks based on dependencies.
+
+        Only includes tasks that are not done (pending, in-progress, blocked, cancelled).
+
+        Returns:
+            List of task IDs in topological order (dependencies first)
+
+        Raises:
+            CycleError: If circular dependencies are detected
+        """
+        active_tasks = {tid: task for tid, task in self.items() if task.status != "done"}
+
+        if not active_tasks:
+            return []
+
+        # Build graph for TopologicalSorter (task -> dependencies)
+        graph = {task_id: task.dependencies for task_id, task in active_tasks.items()}
+
+        ts = TopologicalSorter(graph)
+        return list(ts.static_order())
+
+    def get_ready_tasks(self) -> list[str]:
+        """Get tasks that are ready to work on (all dependencies completed).
+
+        Returns:
+            List of task IDs that are ready to work on
+        """
+        ready = []
+        for task_id, task in self.items():
+            state = self.get_task_state(task)
+            if state == "pending":  # Not blocked, not in progress, not done
+                ready.append(task_id)
+
+        # Sort by creation time (oldest first)
+        ready.sort(key=lambda tid: self[tid].created)
+        return ready
+
+    def get_dependency_tree(
+        self, task_id: str, prefix: str = "", is_last: bool = True
+    ) -> str:
+        """Generate a tree representation of task dependencies.
+
+        Args:
+            task_id: Root task ID
+            prefix: Current prefix for tree drawing
+            is_last: Whether this is the last child
+
+        Returns:
+            String representation of the dependency tree
+        """
+        if task_id not in self:
+            return f"{prefix}{'└── ' if is_last else '├── '}{task_id} [not found]\n"
+
+        task = self[task_id]
+        state = self.get_task_state(task)
+
+        result = (
+            f"{prefix}{'└── ' if is_last else '├── '}{task_id}: {task.message} [{state}]\n"
+        )
+
+        deps = task.dependencies
+        if not deps:
+            return result
+
+        # Sort dependencies for consistent display
+        deps = sorted(deps)
+
+        for i, dep_id in enumerate(deps):
+            is_last_dep = i == len(deps) - 1
+            new_prefix = prefix + ("    " if is_last else "│   ")
+            result += self.get_dependency_tree(dep_id, new_prefix, is_last_dep)
+
+        return result
 
     def get_task_state(self, task: Task) -> StatusT:
         """Compute the runtime state from stored fields and dependencies.

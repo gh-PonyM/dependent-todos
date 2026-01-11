@@ -279,10 +279,8 @@ def test_add_task_with_circular_dependency_detection(runner, temp_config):
 
     # Try to add a task that depends on itself (simulate circular)
     # This is hard to test with the interactive menu, so we'll test the underlying function
-    from dependent_todos.dependencies import detect_circular_dependencies
-
     tasks = load_tasks_from_file(temp_config)
-    circular = detect_circular_dependencies(task_a_id, [task_a_id], tasks)
+    circular = tasks.detect_circular_dependencies(task_a_id, [task_a_id])
     assert task_a_id in circular
 
 
