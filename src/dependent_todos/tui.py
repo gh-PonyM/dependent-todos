@@ -32,8 +32,8 @@ from dependent_todos.utils import generate_unique_id
 
 # UI Constants
 MAX_MESSAGE_DISPLAY_LENGTH = 50
-MESSAGE_TRUNCATE_LENGTH = 47
 TRUNCATION_SUFFIX = "..."
+MESSAGE_TRUNCATE_LENGTH = MAX_MESSAGE_DISPLAY_LENGTH - len(TRUNCATION_SUFFIX)
 
 # Tab filter states (must match tab labels in lowercase)
 TAB_FILTERS = ("all", "todo", "done", "pending")
@@ -47,6 +47,12 @@ class FocusableTabs(Tabs):
     ]
 
 
+def truncate(message: str):
+    if len(message) > MAX_MESSAGE_DISPLAY_LENGTH:
+        message = message[:MESSAGE_TRUNCATE_LENGTH] + TRUNCATION_SUFFIX
+    return message
+
+
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
@@ -55,7 +61,7 @@ class TaskTable(DataTable):
         self.tasks = tasks
         self.filter_state = filter_state
         self.can_focus = True
-        self.add_columns("ID", "State", "Message")
+        self.add_columns("ID", "Status", "Message")
         self._populate_table()
 
     def _populate_table(self):
@@ -66,33 +72,30 @@ class TaskTable(DataTable):
         if not self.tasks:
             return
 
-        # Use state colors from constants
+        # Use task.status colors from constants
         state_colors = STATE_COLORS
 
         # Filter tasks
         filtered_tasks = {}
         for task_id, task in self.tasks.items():
-            state = self.tasks.get_task_state(task)
             if self.filter_state == "all":
                 filtered_tasks[task_id] = task
             elif self.filter_state == "todo":
-                if state == "pending":
+                if task.status == "pending":
                     filtered_tasks[task_id] = task
             elif self.filter_state == "done":
-                if state == "done":
+                if task.status == "done":
                     filtered_tasks[task_id] = task
             elif self.filter_state == "pending":
-                if state in ("pending", "blocked", "in-progress"):
+                if task.status in ("pending", "blocked", "in-progress"):
                     filtered_tasks[task_id] = task
 
         for task_id, task in sorted(filtered_tasks.items()):
-            state = self.tasks.get_task_state(task)
-            state_text = Text(state, style=state_colors.get(state, "white"))
+            state_text = Text(task.status, style=state_colors.get(task.status, "white"))
 
             # Truncate message if too long
             message = task.message
-            if len(message) > MAX_MESSAGE_DISPLAY_LENGTH:
-                message = message[:MESSAGE_TRUNCATE_LENGTH] + TRUNCATION_SUFFIX
+            message = truncate(message)
 
             self.add_row(task_id, state_text.plain, message)
 
@@ -143,8 +146,7 @@ class DependencyTree(Tree):
             return
 
         task = self.tasks[task_id]
-        state = self.tasks.get_task_state(task)
-        node = parent_node.add(f"{task_id}: {task.message} [{state}]")
+        node = parent_node.add(f"{task_id}: {task.message} [{task.status}]")
 
         # Add dependency nodes
         for dep_id in task.dependencies:
@@ -163,7 +165,7 @@ class TaskDetails(Static):
     def __init__(self, task_id: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self.task_id = task_id
-        self.tasks = {}
+        self.tasks: TaskList = TaskList()
         self.showing_order = False
         self.order_list: list[str] = []
 
@@ -196,18 +198,11 @@ class TaskDetails(Static):
             return "Select a task to view details"
 
         task = self.tasks[self.task_id]
-        state = self.tasks.get_task_state(task)
-
-        # Use state colors from constants
-        state_colors = STATE_COLORS
-
         details = f"""[bold cyan]ID:[/bold cyan] {task.id}
-[bold cyan]State:[/bold cyan] [{state_colors.get(state, "white")}]{state}[/{state_colors.get(state, "white")}]
 [bold cyan]Status:[/bold cyan] {task.status}
 [bold cyan]Created:[/bold cyan] {task.created}
 [bold cyan]Started:[/bold cyan] {task.started or "-"}
 [bold cyan]Completed:[/bold cyan] {task.completed or "-"}
-[bold cyan]Cancelled:[/bold cyan] {task.cancelled}
 
 {task.message}
 
@@ -218,8 +213,8 @@ class TaskDetails(Static):
             for dep_id in task.dependencies:
                 dep_task = self.tasks.get(dep_id)
                 if dep_task:
-                    dep_state = self.tasks.get_task_state(dep_task)
-                    details += f"  • {dep_id} [{state_colors.get(dep_state, 'white')}]{dep_state}[/{state_colors.get(dep_state, 'white')}]: {dep_task.message}\n"
+                    dep_state = dep_task.status
+                    details += f"  • {dep_id} [{STATE_COLORS[dep_state]}]{dep_state}[/{STATE_COLORS[dep_state]}]: {dep_task.message}\n"
                 else:
                     details += f"  • {dep_id} [not found]\n"
         else:
@@ -233,8 +228,8 @@ class TaskDetails(Static):
             for dep_id in dependents:
                 dep_task = self.tasks.get(dep_id)
                 if dep_task:
-                    dep_state = self.tasks.get_task_state(dep_task)
-                    details += f"  • {dep_id} [{state_colors.get(dep_state, 'white')}]{dep_state}[/{state_colors.get(dep_state, 'white')}]: {dep_task.message}\n"
+                    dep_state = dep_task.status
+                    details += f"  • {dep_id} [{STATE_COLORS[dep_state]}]{dep_state}[/{STATE_COLORS[dep_state]}]: {dep_task.message}\n"
         else:
             details += "  None\n"
 
@@ -266,9 +261,6 @@ class BaseModalScreen(ModalScreen):
         # with Grid(id="modal-dialog"):
         with Grid(classes="modal-dialog"):
             yield Static(str(self.TITLE), classes="title")
-            # TODO: Here I am asking myself if we can check if the elements have a row-span defined.
-            # if not we take the height from the title, and the height of the button as rowspan and use 12 (grid row number)
-            # set the heights dynamically, is this possible?
             yield from self.get_content()
             yield from self.get_buttons()
 
@@ -317,7 +309,7 @@ class BaseModalScreen(ModalScreen):
             "RadioSet",
             "Select",
             "Switch",
-            "RadioButton"
+            "RadioButton",
         }
 
     @property
@@ -371,8 +363,7 @@ class UpdateTaskModal(BaseModalScreen):
         for task_id, task in app.tasks.items():
             if task_id == self.task_id:  # Exclude self
                 continue
-            state = app.tasks.get_task_state(task)
-            display_text = f"{task_id}: {task.message} [{state}]"
+            display_text = f"{task_id}: {task.message} [{task.status}]"
             # Pre-select current dependencies
             selected = task_id in app.tasks[self.task_id].dependencies
             options.append(Selection(display_text, task_id, selected))
@@ -483,8 +474,7 @@ class AddTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         options = []
         for task_id, task in app.tasks.items():
-            state = app.tasks.get_task_state(task)
-            display_text = f"{task_id}: {task.message} [{state}]"
+            display_text = f"{task_id}: {task.message} [{task.status}]"
             options.append(Selection(display_text, task_id))
         return options
 
@@ -645,7 +635,6 @@ class DependentTodosApp(App):
         tree = self.dep_tree
         if event.node == tree.root:
             return
-        # Extract task_id from node label (format: "task_id: message [state]")
         label = str(event.node.label)
         task_id = label.split(":")[0].strip()
         if task_id in self.tasks:
@@ -774,9 +763,7 @@ class DependentTodosApp(App):
             sidebar = self.sidebar
             if sidebar.display:
                 tree = self.dep_tree
-                # TODO: check if recompose does the trick here in refresh
-                tree.root.remove_children()
-                tree.refresh()
+                tree.refresh(recompose=True)
 
 
 def run_tui():
