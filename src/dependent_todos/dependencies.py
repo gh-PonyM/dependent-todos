@@ -4,13 +4,13 @@ from graphlib import TopologicalSorter
 
 from simple_term_menu import TerminalMenu
 
-from .models import Task
+from .models import Task, TaskList
 
 # All these functions should go onto a class called TaskList.
 
 
 def detect_circular_dependencies(
-    task_id: str, dependencies: list[str], all_tasks: dict[str, Task]
+    task_id: str, dependencies: list[str], all_tasks: TaskList
 ) -> list[str]:
     """Detect circular dependencies in the dependency graph.
 
@@ -39,7 +39,7 @@ def detect_circular_dependencies(
         return dependencies
 
 
-def topological_sort(tasks: dict[str, Task]) -> list[str]:
+def topological_sort(tasks: TaskList) -> list[str]:
     """Perform topological sort on tasks based on dependencies.
 
     Only includes tasks that are not done (pending, in-progress, blocked, cancelled).
@@ -72,7 +72,7 @@ def topological_sort(tasks: dict[str, Task]) -> list[str]:
         raise ValueError("Circular dependencies detected in tasks") from e
 
 
-def get_ready_tasks(tasks: dict[str, Task]) -> list[str]:
+def get_ready_tasks(tasks: TaskList) -> list[str]:
     """Get tasks that are ready to work on (all dependencies completed).
 
     Args:
@@ -83,7 +83,7 @@ def get_ready_tasks(tasks: dict[str, Task]) -> list[str]:
     """
     ready = []
     for task_id, task in tasks.items():
-        state = task.compute_state(tasks)
+        state = tasks.get_task_state(task)
         if state == "pending":  # Not blocked, not in progress, not done
             ready.append(task_id)
 
@@ -93,7 +93,7 @@ def get_ready_tasks(tasks: dict[str, Task]) -> list[str]:
 
 
 def get_dependency_tree(
-    task_id: str, tasks: dict[str, Task], prefix: str = "", is_last: bool = True
+    task_id: str, tasks: TaskList, prefix: str = "", is_last: bool = True
 ) -> str:
     """Generate a tree representation of task dependencies.
 
@@ -110,7 +110,7 @@ def get_dependency_tree(
         return f"{prefix}{'└── ' if is_last else '├── '}{task_id} [not found]\n"
 
     task = tasks[task_id]
-    state = task.compute_state(tasks)
+    state = tasks.get_task_state(task)
 
     result = (
         f"{prefix}{'└── ' if is_last else '├── '}{task_id}: {task.message} [{state}]\n"
@@ -132,7 +132,7 @@ def get_dependency_tree(
 
 
 def select_dependencies_interactive(
-    all_tasks: dict[str, Task], exclude_task_id: str | None = None
+    all_tasks: TaskList, exclude_task_id: str | None = None
 ) -> list[str]:
     """Interactively select dependencies using fuzzy search.
 
@@ -158,7 +158,7 @@ def select_dependencies_interactive(
     task_ids = []
     for task_id in sorted(available_tasks.keys()):
         task = available_tasks[task_id]
-        state = task.compute_state(all_tasks)
+        state = all_tasks.get_task_state(task)
         option = f"{task_id}: {task.message} [{state}]"
         options.append(option)
         task_ids.append(task_id)
@@ -207,7 +207,7 @@ def select_dependencies_interactive(
     return selected_deps
 
 
-def select_task_interactive(all_tasks: dict[str, Task]) -> str | None:
+def select_task_interactive(all_tasks: TaskList) -> str | None:
     """Interactively select a single task using fuzzy search.
 
     Args:
@@ -224,7 +224,7 @@ def select_task_interactive(all_tasks: dict[str, Task]) -> str | None:
     task_ids = []
     for task_id in sorted(all_tasks.keys()):
         task = all_tasks[task_id]
-        state = task.compute_state(all_tasks)
+        state = all_tasks.get_task_state(task)
         option = f"{task_id}: {task.message} [{state}]"
         options.append(option)
         task_ids.append(task_id)

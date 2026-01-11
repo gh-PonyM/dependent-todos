@@ -28,7 +28,7 @@ from dependent_todos.dependencies import (
     get_ready_tasks,
     topological_sort,
 )
-from dependent_todos.models import Task
+from dependent_todos.models import Task, TaskList
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
 from dependent_todos.utils import generate_unique_id
 
@@ -75,7 +75,7 @@ class TaskTable(DataTable):
         # Filter tasks
         filtered_tasks = {}
         for task_id, task in self.tasks.items():
-            state = task.compute_state(self.tasks)
+            state = self.tasks.get_task_state(task)
             if self.filter_state == "all":
                 filtered_tasks[task_id] = task
             elif self.filter_state == "todo":
@@ -89,7 +89,7 @@ class TaskTable(DataTable):
                     filtered_tasks[task_id] = task
 
         for task_id, task in sorted(filtered_tasks.items()):
-            state = task.compute_state(self.tasks)
+            state = self.tasks.get_task_state(task)
             state_text = Text(state, style=state_colors.get(state, "white"))
 
             # Truncate message if too long
@@ -146,7 +146,7 @@ class DependencyTree(Tree):
             return
 
         task = self.tasks[task_id]
-        state = task.compute_state(self.tasks)
+        state = self.tasks.get_task_state(task)
         node = parent_node.add(f"{task_id}: {task.message} [{state}]")
 
         # Add dependency nodes
@@ -199,7 +199,7 @@ class TaskDetails(Static):
             return "Select a task to view details"
 
         task = self.tasks[self.task_id]
-        state = task.compute_state(self.tasks)
+        state = self.tasks.get_task_state(task)
 
         # Use state colors from constants
         state_colors = STATE_COLORS
@@ -221,7 +221,7 @@ class TaskDetails(Static):
             for dep_id in task.dependencies:
                 dep_task = self.tasks.get(dep_id)
                 if dep_task:
-                    dep_state = dep_task.compute_state(self.tasks)
+                    dep_state = self.tasks.get_task_state(dep_task)
                     details += f"  • {dep_id} [{state_colors.get(dep_state, 'white')}]{dep_state}[/{state_colors.get(dep_state, 'white')}]: {dep_task.message}\n"
                 else:
                     details += f"  • {dep_id} [not found]\n"
@@ -236,7 +236,7 @@ class TaskDetails(Static):
             for dep_id in dependents:
                 dep_task = self.tasks.get(dep_id)
                 if dep_task:
-                    dep_state = dep_task.compute_state(self.tasks)
+                    dep_state = self.tasks.get_task_state(dep_task)
                     details += f"  • {dep_id} [{state_colors.get(dep_state, 'white')}]{dep_state}[/{state_colors.get(dep_state, 'white')}]: {dep_task.message}\n"
         else:
             details += "  None\n"
@@ -363,7 +363,7 @@ class UpdateTaskModal(BaseModalScreen):
         for task_id, task in app.tasks.items():
             if task_id == self.task_id:  # Exclude self
                 continue
-            state = task.compute_state(app.tasks)
+            state = app.tasks.get_task_state(task)
             display_text = f"{task_id}: {task.message} [{state}]"
             # Pre-select current dependencies
             selected = task_id in app.tasks[self.task_id].dependencies
@@ -381,7 +381,7 @@ class UpdateTaskModal(BaseModalScreen):
         dependent_texts = []
         for dep_id in dependents:
             dep_task = app.tasks[dep_id]
-            dep_state = dep_task.compute_state(app.tasks)
+            dep_state = app.tasks.get_task_state(dep_task)
             dependent_texts.append(f"• {dep_id}: {dep_task.message} [{dep_state}]")
         return "\n".join(dependent_texts)
 
@@ -475,7 +475,7 @@ class AddTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         options = []
         for task_id, task in app.tasks.items():
-            state = task.compute_state(app.tasks)
+            state = app.tasks.get_task_state(task)
             display_text = f"{task_id}: {task.message} [{state}]"
             options.append(Selection(display_text, task_id))
         return options
@@ -527,7 +527,6 @@ class AddTaskModal(BaseModalScreen):
             message=message,
             dependencies=selected_deps,
             status="pending",
-            cancelled=False,
             started=None,
             completed=None,
         )
@@ -562,7 +561,7 @@ class DependentTodosApp(App):
     def __init__(self):
         super().__init__()
         self.config_path = get_config_path()
-        self.tasks = load_tasks_from_file(self.config_path)
+        self.tasks = cast(TaskList, load_tasks_from_file(self.config_path))
         self.current_task_id = None
         self.current_filter = "all"
         self.footer = f"Config: {self.config_path}"

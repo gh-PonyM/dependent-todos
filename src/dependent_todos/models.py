@@ -34,37 +34,42 @@ class Task(BaseModel):
     def cancelled(self) -> bool:
         return self.status == "cancelled"
 
-    # TODO: this must go into TaskList class, and named recompute_status
-    def compute_state(self, all_tasks: dict[str, "Task"]) -> str:
+
+
+
+class TaskList(dict[str, Task]):
+    """Collection of tasks with dependency management methods."""
+
+    def __init__(self, tasks: dict[str, Task] | None = None):
+        super().__init__(tasks or {})
+
+    def get_task_state(self, task: Task) -> StatusT:
         """Compute the runtime state from stored fields and dependencies.
 
         Args:
-            all_tasks: Dictionary of all tasks by ID for dependency checking
+            task: The task to compute status for
 
         Returns:
             Computed state: "pending", "in-progress", "done", "blocked", or "cancelled"
         """
-        if self.cancelled:
+        if task.cancelled:
             return "cancelled"
 
-        if self.status == "done" and self.completed is not None:
+        if task.status == "done" and task.completed is not None:
             return "done"
 
-        if self.status == "pending":
+        if task.status == "pending":
             # Check if any dependencies are not done
-            for dep_id in self.dependencies:
-                dep_task = all_tasks.get(dep_id)
+            for dep_id in task.dependencies:
+                dep_task = self.get(dep_id)
                 if dep_task is None or dep_task.status != "done":
                     return "blocked"
 
             # No blocking dependencies
-            if self.started is not None and self.completed is None:
+            if task.started is not None and task.completed is None:
                 return "in-progress"
             else:
                 return "pending"
 
         # Fallback (shouldn't reach here with validation)
         return "pending"
-
-
-# TODO: root model pydantic called TaskList

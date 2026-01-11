@@ -5,7 +5,7 @@ from datetime import datetime
 
 from .config import get_config_path
 from .constants import STATE_COLORS
-from .models import Task
+from .models import Task, TaskList
 from .storage import load_tasks_from_file, save_tasks_to_file
 from .utils import generate_unique_id
 
@@ -52,7 +52,7 @@ def list(ctx: click.Context) -> None:
     # Compute states for all tasks
     task_states = {}
     for task_id, task in tasks.items():
-        task_states[task_id] = task.compute_state(tasks)
+        task_states[task_id] = tasks.get_task_state(task)
 
     # Use state colors from constants
     state_colors = STATE_COLORS
@@ -275,7 +275,7 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
             for dep_id in task.dependencies:
                 dep_task = tasks.get(dep_id)
                 if dep_task:
-                    dep_state = dep_task.compute_state(tasks)
+                    dep_state = tasks.get_task_state(dep_task)
                     dep_state_text = Text(
                         f"[{dep_state}]", style=state_colors.get(dep_state, "white")
                     )
@@ -303,7 +303,7 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
             for dep_id in dependents:
                 dep_task = tasks.get(dep_id)
                 if dep_task:
-                    dep_state = dep_task.compute_state(tasks)
+                    dep_state = tasks.get_task_state(dep_task)
                     dep_state_text = Text(
                         f"[{dep_state}]", style=state_colors.get(dep_state, "white")
                     )

@@ -6,21 +6,21 @@ from typing import Any
 
 import tomli_w
 
-from .models import Task
+from .models import Task, TaskList
 
 
-# TODO: replace with class method on Task model called from_file
-def load_tasks_from_file(file_path: Path) -> dict[str, Task]:
+# TODO: replace with class method on TaskList model called from_file
+def load_tasks_from_file(file_path: Path) -> TaskList:
     """Load tasks from a TOML file.
 
     Args:
         file_path: Path to the TOML file
 
     Returns:
-        Dictionary of tasks keyed by ID
+        TaskList of tasks
     """
     if not file_path.exists():
-        return {}
+        return TaskList()
 
     # TODO: stupid exception wrapping here, can just return the exception that is actually thrown
     try:
@@ -44,14 +44,14 @@ def load_tasks_from_file(file_path: Path) -> dict[str, Task]:
         except Exception as e:
             raise RuntimeError(f"Failed to parse task '{task_id}': {e}")
 
-    return tasks
+    return TaskList(tasks)
 
 
-def save_tasks_to_file(tasks: dict[str, Task], file_path: Path) -> None:
+def save_tasks_to_file(tasklist: TaskList, file_path: Path) -> None:
     """Save tasks to a TOML file.
 
     Args:
-        tasks: Dictionary of tasks to save
+        tasklist: TaskList of tasks to save
         file_path: Path to save the TOML file
     """
     # Ensure parent directory exists
@@ -59,7 +59,7 @@ def save_tasks_to_file(tasks: dict[str, Task], file_path: Path) -> None:
 
     # Convert tasks to TOML-compatible format
     tasks_data = {}
-    for task_id, task in tasks.items():
+    for task_id, task in tasklist.items():
         task_dict = task.model_dump()
 
         # Convert datetime objects to ISO strings, None to empty string
