@@ -8,7 +8,7 @@ from graphlib import TopologicalSorter
 
 import tomli_w
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 from dependent_todos.constants import TASK_ID_MAX_LEN, TASK_ID_RE_PATT
 
@@ -42,11 +42,40 @@ class Task(BaseModel):
 
 
 
-class TaskList(dict[str, Task]):
+class TaskList(RootModel):
     """Collection of tasks with dependency management methods."""
 
-    def __init__(self, tasks: dict[str, Task] | None = None):
-        super().__init__(tasks or {})
+    root: dict[str, Task] = Field(default_factory=dict)
+
+    def __getitem__(self, item):
+        return self.root[item]
+
+    def __setitem__(self, key, value):
+        self.root[key] = value
+
+    def __delitem__(self, key):
+        del self.root[key]
+
+    def __len__(self):
+        return len(self.root)
+
+    def __contains__(self, item):
+        return item in self.root
+
+    def get(self, key, default=None):
+        return self.root.get(key, default)
+
+    def items(self):
+        return self.root.items()
+
+    def keys(self):
+        return self.root.keys()
+
+    def values(self):
+        return self.root.values()
+
+    def update(self, *args, **kwargs):
+        self.root.update(*args, **kwargs)
 
     def detect_circular_dependencies(
         self, task_id: str, dependencies: list[str]
@@ -170,23 +199,17 @@ class TaskList(dict[str, Task]):
         except Exception as e:
             raise RuntimeError(f"Failed to load tasks from {file_path}: {e}")
 
-        tasks = {}
         tasks_data = data.get("tasks", {})
 
-        for task_id, task_dict in tasks_data.items():
-            # Convert empty strings to None for datetime fields
+        # Convert empty strings to None for datetime fields
+        for task_dict in tasks_data.values():
             if task_dict.get("started") == "":
                 task_dict["started"] = None
             if task_dict.get("completed") == "":
                 task_dict["completed"] = None
 
-            try:
-                task = Task(**task_dict)
-                tasks[task_id] = task
-            except Exception as e:
-                raise RuntimeError(f"Failed to parse task '{task_id}': {e}")
-
-        return cls(tasks)
+        # Use Pydantic's model_validate
+        return cls.model_validate(tasks_data)
 
     def save_to_file(self, file_path: Path) -> None:
         """Save tasks to a TOML file.
@@ -197,18 +220,15 @@ class TaskList(dict[str, Task]):
         # Ensure parent directory exists
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Convert tasks to TOML-compatible format
-        tasks_data = {}
-        for task_id, task in self.items():
-            task_dict = task.model_dump(mode="json")
+        # Use Pydantic's model_dump to get the data structure
+        tasks_data = self.model_dump()
 
-            # Convert None to empty string for TOML compatibility
+        # Convert None to empty string for TOML compatibility
+        for task_dict in tasks_data.values():
             if task_dict["started"] is None:
                 task_dict["started"] = ""
             if task_dict["completed"] is None:
                 task_dict["completed"] = ""
-
-            tasks_data[task_id] = task_dict
 
         data = {"tasks": tasks_data}
 
