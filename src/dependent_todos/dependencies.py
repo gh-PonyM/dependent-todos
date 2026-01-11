@@ -6,6 +6,8 @@ from simple_term_menu import TerminalMenu
 
 from .models import Task
 
+# All these functions should go onto a class called TaskList.
+
 
 def detect_circular_dependencies(
     task_id: str, dependencies: list[str], all_tasks: dict[str, Task]
@@ -62,6 +64,8 @@ def topological_sort(tasks: dict[str, Task]) -> list[str]:
     graph = {task_id: task.dependencies for task_id, task in active_tasks.items()}
 
     ts = TopologicalSorter(graph)
+    # TODO: remove custom error, why is this needed? If we have to capture this exception, we can use the cycle error.
+    # Also we only catch on exception and multiple, so there is not benefit for the consumer of this function
     try:
         return list(ts.static_order())
     except CycleError as e:

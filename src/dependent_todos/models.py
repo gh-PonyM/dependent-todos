@@ -1,18 +1,26 @@
 """Data models for the dependent todos application."""
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
+
+from dependent_todos.constants import TASK_ID_MAX_LEN, TASK_ID_RE_PATT
+
+StatusT = Literal["pending", "done", "blocked", "cancelled", "in-progress"]
 
 
 class Task(BaseModel):
     """A task with dependencies and status tracking."""
 
     id: str = Field(
-        ..., description="Unique identifier, auto-generated slug from message"
+        ...,
+        description="Unique identifier, auto-generated slug from message",
+        max_length=TASK_ID_MAX_LEN,
+        pattern=TASK_ID_RE_PATT,
     )
     message: str = Field(..., description="Task description")
-    status: str = Field("pending", description="Stored status: 'pending' or 'done'")
+    status: StatusT = Field("pending", description="Stored status")
     dependencies: list[str] = Field(
         default_factory=list, description="List of task IDs this task depends on"
     )
@@ -21,28 +29,12 @@ class Task(BaseModel):
     )
     started: datetime | None = Field(None, description="When work began on task")
     completed: datetime | None = Field(None, description="When task was marked done")
-    cancelled: bool = Field(False, description="Whether task is cancelled")
 
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, v: str) -> str:
-        """Validate status is either 'pending' or 'done'."""
-        if v not in ("pending", "done"):
-            raise ValueError("status must be 'pending' or 'done'")
-        return v
+    @property
+    def cancelled(self) -> bool:
+        return self.status == "cancelled"
 
-    @field_validator("id")
-    @classmethod
-    def validate_id(cls, v: str) -> str:
-        """Validate ID format (slug-like)."""
-        import re
-
-        if not re.match(r"^[a-z0-9]+(?:-[a-z0-9]+)*$", v):
-            raise ValueError("ID must be lowercase alphanumeric with hyphens only")
-        if len(v) > 50:
-            raise ValueError("ID must be 50 characters or less")
-        return v
-
+    # TODO: this must go into TaskList class, and named recompute_status
     def compute_state(self, all_tasks: dict[str, "Task"]) -> str:
         """Compute the runtime state from stored fields and dependencies.
 
@@ -75,11 +67,4 @@ class Task(BaseModel):
         return "pending"
 
 
-# Color mapping for task states
-STATE_COLORS = {
-    "pending": "yellow",
-    "in-progress": "blue",
-    "done": "green",
-    "blocked": "red",
-    "cancelled": "dim red",
-}
+# TODO: root model pydantic called TaskList

@@ -9,6 +9,7 @@ import tomli_w
 from .models import Task
 
 
+# TODO: replace with class method on Task model called from_file
 def load_tasks_from_file(file_path: Path) -> dict[str, Task]:
     """Load tasks from a TOML file.
 
@@ -21,6 +22,7 @@ def load_tasks_from_file(file_path: Path) -> dict[str, Task]:
     if not file_path.exists():
         return {}
 
+    # TODO: stupid exception wrapping here, can just return the exception that is actually thrown
     try:
         with open(file_path, "rb") as f:
             data = tomllib.load(f)
@@ -61,6 +63,7 @@ def save_tasks_to_file(tasks: dict[str, Task], file_path: Path) -> None:
         task_dict = task.model_dump()
 
         # Convert datetime objects to ISO strings, None to empty string
+        # TODO: this a really bad implementation. A serializer for pydantic must be used that converts datetime into isoformat
         if task_dict["created"]:
             task_dict["created"] = task_dict["created"].isoformat()
         else:
@@ -78,6 +81,7 @@ def save_tasks_to_file(tasks: dict[str, Task], file_path: Path) -> None:
 
     data = {"tasks": tasks_data}
 
+    # TODO Put the dump logic on the pydantic model
     try:
         with open(file_path, "wb") as f:
             tomli_w.dump(data, f)
@@ -85,6 +89,7 @@ def save_tasks_to_file(tasks: dict[str, Task], file_path: Path) -> None:
         raise RuntimeError(f"Failed to save tasks to {file_path}: {e}")
 
 
+# TODO: remove this, pydantic handles this
 def _parse_datetime(dt_str: str) -> Any:
     """Parse an ISO datetime string to a datetime object.
 

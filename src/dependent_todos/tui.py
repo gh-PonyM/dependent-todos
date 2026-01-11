@@ -22,12 +22,13 @@ from textual.screen import ModalScreen
 from textual import events, on
 
 from dependent_todos.config import get_config_path
+from dependent_todos.constants import STATE_COLORS
 from dependent_todos.dependencies import (
     detect_circular_dependencies,
     get_ready_tasks,
     topological_sort,
 )
-from dependent_todos.models import STATE_COLORS, Task
+from dependent_todos.models import Task
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
 from dependent_todos.utils import generate_unique_id
 
@@ -158,6 +159,7 @@ class DependencyTree(Tree):
             node.expand()
 
 
+# TODO: prio low: this class does display two things and has to be refactored. create OrderDetails. Put both into parent container and swap the widget
 class TaskDetails(Static):
     """Widget for displaying detailed task information."""
 
@@ -554,6 +556,9 @@ class DependentTodosApp(App):
 
     CSS_PATH = "styles.css"
 
+    # TODO: Do the same for the other ids of the main widgets used and use the class variables inside the functions
+    SIDEBAR_WIDGET_ID = "sidebar"
+
     def __init__(self):
         super().__init__()
         self.config_path = get_config_path()
@@ -566,7 +571,7 @@ class DependentTodosApp(App):
         """Compose the UI."""
         yield Header()
 
-        with Sidebar(id="sidebar"):
+        with Sidebar(id=self.SIDEBAR_WIDGET_ID):
             tree = DependencyTree(self.tasks, root_task_id=self.current_task_id)
             tree.id = "dep-tree"
             yield tree
@@ -584,7 +589,7 @@ class DependentTodosApp(App):
 
     def on_mount(self) -> None:
         """Initialize the UI after mounting."""
-        sidebar = self.query_one("#sidebar", Container)
+        sidebar = self.sidebar
         sidebar.display = False
         self.task_table.focus()
 
@@ -601,12 +606,12 @@ class DependentTodosApp(App):
             return
         task_id = table.get_row(row_key)[0]
         self.current_task_id = task_id
-        details = self.query_one("#task-details", TaskDetails)
+        details = self.task_details
         details.update_task(task_id, self.tasks)
         # Refresh tree if visible
-        sidebar = self.query_one("#sidebar", Container)
+        sidebar = self.sidebar
         if sidebar.display:
-            tree = self.query_one("#dep-tree", DependencyTree)
+            tree = self.dep_tree
             tree.root_task_id = self.current_task_id
             tree._build_tree()
             tree.refresh()

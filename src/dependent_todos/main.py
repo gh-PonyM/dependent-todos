@@ -4,7 +4,8 @@ import click
 from datetime import datetime
 
 from .config import get_config_path
-from .models import STATE_COLORS, Task
+from .constants import STATE_COLORS
+from .models import Task
 from .storage import load_tasks_from_file, save_tasks_to_file
 from .utils import generate_unique_id
 
@@ -237,7 +238,6 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
         return
 
     console = Console()
-    state = task.compute_state(tasks)
 
     # Use state colors from constants
     state_colors = STATE_COLORS
@@ -247,10 +247,8 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
     info_table.add_column("Field", style="cyan", width=12)
     info_table.add_column("Value", style="white")
 
-    state_text = Text(state, style=state_colors.get(state, "white"))
     info_table.add_row("ID", task.id)
     info_table.add_row("Message", task.message)
-    info_table.add_row("State", state_text)
     info_table.add_row("Status", task.status)
     info_table.add_row("Created", str(task.created))
     info_table.add_row("Started", str(task.started) if task.started else "-")
@@ -262,7 +260,7 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
         dep_count = len(task.dependencies)
         dependents = [tid for tid, t in tasks.items() if task_id in t.dependencies]
         block_count = len(dependents)
-        info_table.add_row("Dependencies", str(dep_count))
+        info_table.add_row("Blocked By", str(dep_count))
         info_table.add_row("Blocks", str(block_count))
 
     console.print(Panel(info_table, title=f"Task: {task_id}", border_style="blue"))
@@ -285,10 +283,14 @@ def show(ctx: click.Context, task_id: str | None, details: bool) -> None:
                 else:
                     dep_table.add_row(dep_id, "[not found]")
 
-            console.print(Panel(dep_table, title="Dependencies", border_style="green"))
+            console.print(Panel(dep_table, title="Blocked by", border_style="green"))
         else:
             console.print(
-                Panel("No dependencies", title="Dependencies", border_style="green")
+                Panel(
+                    "No dependencies (not blocked by any task)",
+                    title="Dependencies",
+                    border_style="green",
+                )
             )
 
         # Tasks that depend on this one
@@ -402,7 +404,6 @@ def add(ctx: click.Context, interactive: bool) -> None:
         message=message,
         dependencies=dependencies,
         status="pending",
-        cancelled=False,
         started=None,
         completed=None,
     )

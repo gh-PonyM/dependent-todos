@@ -15,7 +15,7 @@ from dependent_todos.tui import (
     DeleteTaskModal,
     UpdateTaskModal,
 )
-from dependent_todos.models import Task
+from dependent_todos.models import Task, StatusT
 from textual.containers import Container
 from textual.widgets import SelectionList
 
@@ -23,30 +23,19 @@ from textual.widgets import SelectionList
 def create_sample_task(
     id: str,
     message: str,
-    dependencies: list[str] = [],
-    status: str = "pending",
-    cancelled: bool = False,
+    dependencies: list[str] | None = None,
+    status: StatusT = "pending",
     started: datetime | None = None,
     completed: datetime | None = None,
 ) -> Task:
     return Task(
         id=id,
         message=message,
-        dependencies=dependencies,
+        dependencies=dependencies or [],
         status=status,
-        cancelled=cancelled,
         started=started,
         completed=completed,
     )
-
-
-@pytest.mark.asyncio
-async def test_app_starts(temp_dir):
-    """Test that the app starts without errors."""
-    app = DependentTodosApp()
-    async with app.run_test() as pilot:
-        # App should start and show header
-        assert pilot.app.query_one("Header")
 
 
 def test_initial_screen_snapshot(temp_dir, snap_compare):
@@ -143,6 +132,7 @@ async def test_navigation_and_focus(temp_dir):
             ),
         }
         # Refresh the table and details with new tasks
+        # TODO: use the properties defined in app, e.g. app.task_table, etc.
         table = cast(TaskTable, pilot.app.query_one("#task-table"))
         table.refresh_data(app.tasks)
         assert table.row_count == 3
@@ -376,6 +366,7 @@ async def test_update_task_modal_with_dependencies(temp_dir):
         assert task.message == "Updated Task 3"
 
 
+# TODO: can be integrated into another test
 @pytest.mark.asyncio
 async def test_circular_dependency_detection(temp_dir):
     """Test that circular dependencies are detected and prevented."""
@@ -405,7 +396,7 @@ async def test_circular_dependency_detection(temp_dir):
 
 
 @pytest.mark.asyncio
-async def test_toggle_tree_sidebar(temp_dir):
+async def test_tree_sidebar(temp_dir):
     """Test toggling the dependency tree sidebar with realistic task scenario."""
     app = DependentTodosApp()
     async with app.run_test() as pilot:
@@ -458,6 +449,7 @@ async def test_toggle_tree_sidebar(temp_dir):
         assert not sidebar.visible  # Still hidden, no task selected
 
 
+# TODO: can be added to test above
 @pytest.mark.asyncio
 async def test_tree_node_selection_updates_current_task(temp_dir):
     """Test that selecting a tree node updates the current task and details."""
@@ -519,6 +511,7 @@ async def test_tree_node_selection_updates_current_task(temp_dir):
         assert tree.root_task_id == "task1"
 
 
+# TODO: add to test_tree_sidebar
 @pytest.mark.asyncio
 async def test_tab_switch_clears_tree(temp_dir):
     """Test that switching tabs clears the dependency tree if visible."""

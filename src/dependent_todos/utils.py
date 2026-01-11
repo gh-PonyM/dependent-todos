@@ -2,6 +2,8 @@
 
 import re
 
+from dependent_todos.constants import TASK_ID_MAX_LEN
+
 
 def slugify(text: str, max_length: int = 50) -> str:
     """Convert text to a URL-compatible slug.
@@ -35,7 +37,7 @@ def slugify(text: str, max_length: int = 50) -> str:
 
 
 def generate_unique_id(
-    message: str, existing_ids: set[str], max_length: int = 20
+    message: str, existing_ids: set[str], max_length: int = TASK_ID_MAX_LEN
 ) -> str:
     """Generate a unique slug ID from a message.
 
@@ -47,6 +49,8 @@ def generate_unique_id(
     Returns:
         Unique slug ID
     """
+    # TODO: rewrite this in a way that a max length is given but: define split chars, and return only complete chunks of a word/split.
+    # A part of a split should not be added truncated
     base_slug = slugify(message, max_length)
 
     if base_slug not in existing_ids:
