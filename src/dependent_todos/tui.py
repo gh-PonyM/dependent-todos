@@ -307,17 +307,27 @@ class BaseModalScreen(ModalScreen):
             self.dismiss()
 
     @property
-    def cycle_selectors(self):
-        return {Button, Input, TextArea}
+    def cycle_selectors(self) -> set[str]:
+        return {
+            "Button",
+            "Input",
+            "TextArea",
+            "SelectionList",
+            "Checkbox",
+            "RadioSet",
+            "Select",
+            "Switch",
+            "RadioButton"
+        }
 
     @property
     def cycle_widgets(self):
         """A query to get all widgets we can cycle with keybindings"""
-        return self.query(*self.cycle_selectors)
+        return self.query(", ".join(self.cycle_selectors))
 
     def action_next_input(self) -> None:
         """Focus the next input field."""
-        focusables = tuple(self.query("Input, TextArea").nodes)
+        focusables = tuple(self.cycle_widgets.nodes)
         if not focusables:
             self.notify("No inputs to cycle")
             return
@@ -331,15 +341,16 @@ class BaseModalScreen(ModalScreen):
 
     def action_prev_input(self) -> None:
         """Focus the previous input field."""
-        focusables = tuple(self.query("Input, TextArea").nodes)
-        if focusables:
-            current = self.focused
-            if current in focusables:
-                index = focusables.index(current)
-                prev_index = (index - 1) % len(focusables)
-            else:
-                prev_index = -1
-            self.set_focus(focusables[prev_index])
+        focusables = tuple(self.cycle_widgets.nodes)
+        if not focusables:
+            return
+        current = self.focused
+        if current in focusables:
+            index = focusables.index(current)
+            prev_index = (index - 1) % len(focusables)
+        else:
+            prev_index = -1
+        self.set_focus(focusables[prev_index])
 
 
 class UpdateTaskModal(BaseModalScreen):
