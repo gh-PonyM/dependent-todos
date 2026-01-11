@@ -1,11 +1,8 @@
 """Dependency management utilities for tasks."""
 
-from graphlib import TopologicalSorter
-
 from simple_term_menu import TerminalMenu
 
-from .models import Task, TaskList
-
+from .models import TaskList
 
 
 def select_dependencies_interactive(

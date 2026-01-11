@@ -5,7 +5,7 @@ from datetime import datetime
 
 from .config import get_config_path
 from .constants import STATE_COLORS
-from .models import Task, TaskList
+from .models import Task
 from .storage import load_tasks_from_file, save_tasks_to_file
 from .utils import generate_unique_id
 
@@ -171,7 +171,6 @@ def tree(ctx: click.Context, task_id: str | None) -> None:
 def ready(ctx: click.Context) -> None:
     """Show tasks that are ready to work on (all dependencies completed)."""
 
-
     config_path = ctx.obj["config_path"]
     tasks = load_tasks_from_file(config_path)
 
@@ -191,7 +190,6 @@ def ready(ctx: click.Context) -> None:
 @click.pass_context
 def order(ctx: click.Context) -> None:
     """Show topological execution order."""
-
 
     config_path = ctx.obj["config_path"]
     tasks = load_tasks_from_file(config_path)

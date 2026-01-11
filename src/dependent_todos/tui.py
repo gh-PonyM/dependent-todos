@@ -4,6 +4,8 @@ from datetime import datetime
 from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import cast, Literal
+
+from textual.binding import Binding
 from textual.containers import Container, Grid
 from textual.widgets import (
     Button,
@@ -41,15 +43,14 @@ class FocusableTabs(Tabs):
     """Tabs widget that can be focused."""
 
     BINDINGS = Tabs.BINDINGS + [
-        ("shift+tab", "previous_tag", "Previous tab"),
-        ("tab", "next_tab", "Next tab"),
+        Binding("tab", "next_tab", "Next tab", show=False),
     ]
 
 
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
-    def __init__(self, tasks: dict[str, Task], filter_state: str = "all", **kwargs):
+    def __init__(self, tasks: TaskList, filter_state: str = "all", **kwargs):
         super().__init__(**kwargs)
         self.tasks = tasks
         self.filter_state = filter_state
@@ -95,7 +96,7 @@ class TaskTable(DataTable):
 
             self.add_row(task_id, state_text.plain, message)
 
-    def refresh_data(self, tasks: dict[str, Task]):
+    def refresh_data(self, tasks: TaskList):
         """Refresh the table with new task data."""
         self.tasks = tasks
         self._populate_table()
@@ -104,7 +105,7 @@ class TaskTable(DataTable):
 class DependencyTree(Tree):
     """Tree widget for displaying task dependencies."""
 
-    def __init__(self, tasks: dict[str, Task], root_task_id: str | None = None):
+    def __init__(self, tasks: TaskList, root_task_id: str | None = None):
         super().__init__("Tasks")
         self.tasks = tasks
         self.root_task_id = root_task_id
@@ -166,7 +167,7 @@ class TaskDetails(Static):
         self.showing_order = False
         self.order_list: list[str] = []
 
-    def update_task(self, task_id: str, tasks: dict[str, Task]):
+    def update_task(self, task_id: str, tasks: TaskList):
         """Update the displayed task."""
         self.task_id = task_id
         self.tasks = tasks

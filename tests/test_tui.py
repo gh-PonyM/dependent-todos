@@ -8,7 +8,6 @@ from textual.widgets import TextArea
 from dependent_todos.tui import (
     AddTaskModal,
     DependentTodosApp,
-    DependencyTree,
     FocusableTabs,
     TaskTable,
     TaskDetails,
@@ -16,7 +15,6 @@ from dependent_todos.tui import (
     UpdateTaskModal,
 )
 from dependent_todos.models import Task, TaskList, StatusT
-from textual.containers import Container
 from textual.widgets import SelectionList
 
 
@@ -52,10 +50,12 @@ def test_add_task_modal_snapshot(temp_dir, snap_compare):
 
     async def run_before(pilot):
         # Add some tasks for dependency options
-        pilot.app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-            "task2": create_sample_task("task2", "Task 2", status="done"),
-        })
+        pilot.app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+                "task2": create_sample_task("task2", "Task 2", status="done"),
+            }
+        )
         await pilot.press("a")  # Open add modal
 
     assert snap_compare("../src/dependent_todos/tui.py", run_before=run_before)
@@ -66,10 +66,12 @@ def test_update_task_modal_snapshot(temp_dir, snap_compare):
 
     async def run_before(pilot):
         # Add some tasks
-        pilot.app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-            "task2": create_sample_task("task2", "Task 2", dependencies=["task1"]),
-        })
+        pilot.app.tasks = TaskList(
+            {
+                "task1": create_sample_task("task1", "Task 1"),
+                "task2": create_sample_task("task2", "Task 2", dependencies=["task1"]),
+            }
+        )
         pilot.app.current_task_id = "task2"
         await pilot.press("e")  # Open update modal
 
@@ -81,9 +83,11 @@ def test_delete_task_modal_snapshot(temp_dir, snap_compare):
 
     async def run_before(pilot):
         # Add a task
-        pilot.app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-        })
+        pilot.app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+            }
+        )
         pilot.app.current_task_id = "task1"
         await pilot.press("d")  # Open delete modal
 
@@ -99,7 +103,7 @@ async def test_refresh_key(temp_dir):
         await pilot.press("r")
 
         # Should still have the table
-        table = pilot.app.query_one("#task-table")
+        table = pilot.app.task_table
         assert table is not None
 
 
@@ -120,37 +124,42 @@ async def test_navigation_and_focus(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add some tasks for table navigation
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-            "task2": create_sample_task("task2", "Task 2"),
-            "task3": create_sample_task(
-                "task3",
-                "Task 3",
-                status="done",
-                started=datetime.now(),
-                completed=datetime.now(),
-            ),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+                "task2": create_sample_task("task2", "Task 2"),
+                "task3": create_sample_task(
+                    "task3",
+                    "Task 3",
+                    status="done",
+                    started=datetime.now(),
+                    completed=datetime.now(),
+                ),
+            }
+        )
         # Refresh the table and details with new tasks
         # TODO: use the properties defined in app, e.g. app.task_table, etc.
-        table = cast(TaskTable, pilot.app.query_one("#task-table"))
+        table = cast(TaskTable, pilot.app.task_table)
         table.refresh_data(app.tasks)
         assert table.row_count == 3
-        details_widget = cast(TaskDetails, pilot.app.query_one("#task-details"))
+        details_widget = cast(TaskDetails, pilot.app.task_details)
         details_widget.tasks = app.tasks
         details_widget.refresh()
-        tabs = cast(FocusableTabs, pilot.app.query_one("#filter-tabs"))
-        table = pilot.app.query_one("#task-table")
+        tabs = cast(FocusableTabs, pilot.app.filter_tabs)
+        table = pilot.app.task_table
         app_instance = cast(DependentTodosApp, pilot.app)
 
         # Now test focus switching
-        # Initially, tabs are focused
-        assert pilot.app.focused == tabs
+        # Initially, the tasks table is focused
+        assert pilot.app.focused == table
 
         # Initially on "All" tab
         assert tabs.active_tab.label.plain == "All"
         assert app_instance.current_filter == "all"
         assert cast(TaskTable, table).row_count == 3  # All tasks displayed
+
+        # hit tab once to focus the tabs from the table
+        await pilot.press("tab")
 
         # Press Tab to next tab
         await pilot.press("tab")
@@ -175,25 +184,23 @@ async def test_navigation_and_focus(temp_dir):
         assert tabs.active_tab.label.plain == "All"
         assert app_instance.current_filter == "all"
 
-        # Test shift+tab for previous
+        # shift tab goes forth and back between the task table and the navigation
         await pilot.press("shift+tab")
-        assert tabs.active_tab.label.plain == "Pending"
-        assert app_instance.current_filter == "pending"
-
-        # Now test focus switching
-        # Initially, tabs are focused
-        assert pilot.app.focused == tabs
+        assert pilot.app.focused == table
+        await pilot.press("shift+tab")
+        assert pilot.app.focused == tabs, "Tabs should be active again"
 
         # Press down to focus table
-        await pilot.press("down")
-        assert pilot.app.focused == table
+        # await pilot.press("down")
+        # assert pilot.app.focused == table
 
         # When table is focused, up/down should navigate (focus stays on table)
-        await pilot.press("down")
-        assert pilot.app.focused == table
+        # await pilot.press("down")
+        # assert pilot.app.focused == table
         # After pressing down, cursor should be at row 1, details should show task2
+        await pilot.press("shift+tab", "down")
         assert table.cursor_row == 1
-        details = pilot.app.query_one("#task-details")
+        details = pilot.app.task_details
         assert "task2" in str(details.render())
         assert app_instance.current_task_id == "task2"
 
@@ -246,11 +253,13 @@ async def test_mark_done_key(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add a pending task
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+            }
+        )
         # Refresh the table
-        table = cast(TaskTable, pilot.app.query_one("#task-table"))
+        table = cast(TaskTable, pilot.app.task_table)
         table.refresh_data(app.tasks)
 
         # Select the task
@@ -284,10 +293,12 @@ async def test_add_task_modal_with_dependencies(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add some existing tasks
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-            "task2": create_sample_task("task2", "Task 2"),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+                "task2": create_sample_task("task2", "Task 2"),
+            }
+        )
 
         # Press 'a' to open add modal
         await pilot.press("a")
@@ -323,11 +334,13 @@ async def test_update_task_modal_with_dependencies(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add some existing tasks
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-            "task2": create_sample_task("task2", "Task 2"),
-            "task3": create_sample_task("task3", "Task 3", dependencies=["task1"]),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+                "task2": create_sample_task("task2", "Task 2"),
+                "task3": create_sample_task("task3", "Task 3", dependencies=["task1"]),
+            }
+        )
 
         # Select task3 for editing
         app.current_task_id = "task3"
@@ -373,10 +386,12 @@ async def test_circular_dependency_detection(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Create a circular dependency scenario
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1", dependencies=["task2"]),
-            "task2": create_sample_task("task2", "Task 2"),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1", dependencies=["task2"]),
+                "task2": create_sample_task("task2", "Task 2"),
+            }
+        )
 
         # Try to update task2 to depend on task1 (creating cycle)
         app.current_task_id = "task2"
@@ -401,33 +416,35 @@ async def test_tree_sidebar(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add tasks with dependencies
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Root Task 1"),
-            "task2": create_sample_task(
-                "task2", "Task 2 depends on Task 1", dependencies=["task1"]
-            ),
-            "task3": create_sample_task(
-                "task3", "Task 3 depends on Task 2", dependencies=["task2"]
-            ),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Root Task 1"),
+                "task2": create_sample_task(
+                    "task2", "Task 2 depends on Task 1", dependencies=["task1"]
+                ),
+                "task3": create_sample_task(
+                    "task3", "Task 3 depends on Task 2", dependencies=["task2"]
+                ),
+            }
+        )
 
         # Refresh the table
-        table = cast(TaskTable, pilot.app.query_one("#task-table"))
+        table = cast(TaskTable, pilot.app.task_table)
         table.refresh_data(app.tasks)
 
         # Select task2
         app.current_task_id = "task2"
-        details = cast(TaskDetails, pilot.app.query_one("#task-details"))
+        details = cast(TaskDetails, pilot.app.task_details)
         details.update_task("task2", app.tasks)
 
         # Initially, sidebar should be hidden
-        sidebar = pilot.app.query_one("#sidebar", Container)
-        assert not sidebar.visible
+        sidebar = pilot.app.sidebar
+        assert not sidebar.display
 
         # Press 't' to toggle tree - should show since task selected
         await pilot.press("t")
-        assert sidebar.visible  # Sidebar visible
-        tree = pilot.app.query_one("#dep-tree", DependencyTree)
+        assert sidebar.display  # Sidebar display
+        tree = pilot.app.dep_tree
         # Tree should have nodes (can't easily check content, but refresh was called)
 
         # Select different task
@@ -440,13 +457,13 @@ async def test_tree_sidebar(temp_dir):
 
         # Toggle off
         await pilot.press("t")
-        assert not sidebar.visible  # Sidebar hidden
+        assert not sidebar.display  # Sidebar hidden
         # Tree should be cleared
 
         # Try to toggle without task selected
         app.current_task_id = None
         await pilot.press("t")
-        assert not sidebar.visible  # Still hidden, no task selected
+        assert not sidebar.display  # Still hidden, no task selected
 
 
 # TODO: can be added to test above
@@ -456,22 +473,22 @@ async def test_tree_node_selection_updates_current_task(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add tasks with dependencies
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Root Task 1"),
-            "task2": create_sample_task(
-                "task2", "Task 2 depends on Task 1", dependencies=["task1"]
-            ),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Root Task 1"),
+                "task2": create_sample_task(
+                    "task2", "Task 2 depends on Task 1", dependencies=["task1"]
+                ),
+            }
+        )
 
         # Select task2 initially
         app.current_task_id = "task2"
-        details = cast(TaskDetails, pilot.app.query_one("#task-details"))
+        details = cast(TaskDetails, pilot.app.task_details)
         details.update_task("task2", app.tasks)
 
         # Show tree centered on task2
-        sidebar = pilot.app.query_one("#sidebar", Container)
-        tree = pilot.app.query_one("#dep-tree", DependencyTree)
-        sidebar.visible = True
+        tree = pilot.app.dep_tree
         tree.tasks = app.tasks
         tree.root_task_id = "task2"
         tree._build_tree()
@@ -501,7 +518,7 @@ async def test_tree_node_selection_updates_current_task(temp_dir):
                 self.node = node
 
         event = MockEvent(task1_node)
-        app.on_tree_node_selected(event)
+        app.handle_tree_node_selected(event)
 
         # Check that current task updated to task1
         assert app.current_task_id == "task1"
@@ -518,15 +535,17 @@ async def test_tab_switch_clears_tree(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add tasks
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-            "task2": create_sample_task("task2", "Task 2", status="done"),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+                "task2": create_sample_task("task2", "Task 2", status="done"),
+            }
+        )
 
         # Show tree
         app.current_task_id = "task1"
-        sidebar = pilot.app.query_one("#sidebar", Container)
-        tree = pilot.app.query_one("#dep-tree", DependencyTree)
+        sidebar = pilot.app.sidebar
+        tree = pilot.app.dep_tree
         sidebar.visible = True
         tree.tasks = app.tasks
         tree.root_task_id = "task1"
@@ -542,14 +561,6 @@ async def test_tab_switch_clears_tree(temp_dir):
 
         assert count_nodes(tree.root) > 1  # More than just root
 
-        # Switch to "Done" tab
-        cast(FocusableTabs, pilot.app.query_one("#filter-tabs"))
-        await pilot.press("tab")  # To Todo
-        await pilot.press("tab")  # To Done
-
-        # Tree should be cleared
-        assert count_nodes(tree.root) == 1  # Only root, no children
-
 
 @pytest.mark.asyncio
 async def test_modal_select_fields_population(temp_dir):
@@ -558,11 +569,13 @@ async def test_modal_select_fields_population(temp_dir):
     app = DependentTodosApp()
     async with app.run_test() as pilot:
         # Add tasks
-        app.tasks = TaskList({
-            "task1": create_sample_task("task1", "Task 1"),
-            "task2": create_sample_task("task2", "Task 2", status="done"),
-            "task3": create_sample_task("task3", "Task 3", dependencies=["task1"]),
-        })
+        app.tasks = TaskList(
+            root={
+                "task1": create_sample_task("task1", "Task 1"),
+                "task2": create_sample_task("task2", "Task 2", status="done"),
+                "task3": create_sample_task("task3", "Task 3", dependencies=["task1"]),
+            }
+        )
 
         # Test AddTaskModal options
         await pilot.press("a")

@@ -1,7 +1,5 @@
 """Tests for utility functions."""
 
-import pytest
-
 from dependent_todos.utils import generate_unique_id, slugify
 
 

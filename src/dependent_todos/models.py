@@ -40,8 +40,6 @@ class Task(BaseModel):
         return self.status == "cancelled"
 
 
-
-
 class TaskList(RootModel):
     """Collection of tasks with dependency management methods."""
 
@@ -73,9 +71,6 @@ class TaskList(RootModel):
 
     def values(self):
         return self.root.values()
-
-    def update(self, *args, **kwargs):
-        self.root.update(*args, **kwargs)
 
     def detect_circular_dependencies(
         self, task_id: str, dependencies: list[str]
@@ -116,7 +111,9 @@ class TaskList(RootModel):
         Raises:
             CycleError: If circular dependencies are detected
         """
-        active_tasks = {tid: task for tid, task in self.items() if task.status != "done"}
+        active_tasks = {
+            tid: task for tid, task in self.items() if task.status != "done"
+        }
 
         if not active_tasks:
             return []
@@ -162,9 +159,7 @@ class TaskList(RootModel):
         task = self[task_id]
         state = self.get_task_state(task)
 
-        result = (
-            f"{prefix}{'└── ' if is_last else '├── '}{task_id}: {task.message} [{state}]\n"
-        )
+        result = f"{prefix}{'└── ' if is_last else '├── '}{task_id}: {task.message} [{state}]\n"
 
         deps = task.dependencies
         if not deps:
@@ -192,51 +187,16 @@ class TaskList(RootModel):
         """
         if not file_path.exists():
             return cls()
-
-        try:
-            with open(file_path, "rb") as f:
-                data = tomllib.load(f)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load tasks from {file_path}: {e}")
-
-        tasks_data = data.get("tasks", {})
-
-        # Convert empty strings to None for datetime fields
-        for task_dict in tasks_data.values():
-            if task_dict.get("started") == "":
-                task_dict["started"] = None
-            if task_dict.get("completed") == "":
-                task_dict["completed"] = None
+        with open(file_path, "rb") as f:
+            data = tomllib.load(f)
 
         # Use Pydantic's model_validate
-        return cls.model_validate(tasks_data)
+        return cls.model_validate(data)
 
     def save_to_file(self, file_path: Path) -> None:
-        """Save tasks to a TOML file.
-
-        Args:
-            file_path: Path to save the TOML file
-        """
-        # Ensure parent directory exists
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Use Pydantic's model_dump to get the data structure
-        tasks_data = self.model_dump()
-
-        # Convert None to empty string for TOML compatibility
-        for task_dict in tasks_data.values():
-            if task_dict["started"] is None:
-                task_dict["started"] = ""
-            if task_dict["completed"] is None:
-                task_dict["completed"] = ""
-
-        data = {"tasks": tasks_data}
-
-        try:
-            with open(file_path, "wb") as f:
-                tomli_w.dump(data, f)
-        except Exception as e:
-            raise RuntimeError(f"Failed to save tasks to {file_path}: {e}")
+        tasks_data = self.model_dump(mode="json", exclude_none=True)
+        with open(file_path, "wb") as f:
+            tomli_w.dump(tasks_data, f)
 
     def get_task_state(self, task: Task) -> StatusT:
         """Compute the runtime state from stored fields and dependencies.
