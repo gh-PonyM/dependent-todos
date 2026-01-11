@@ -35,7 +35,7 @@ TRUNCATION_SUFFIX = "..."
 MESSAGE_TRUNCATE_LENGTH = MAX_MESSAGE_DISPLAY_LENGTH - len(TRUNCATION_SUFFIX)
 
 # Tab filter states (must match tab labels in lowercase)
-TAB_FILTERS = ("all", "todo", "done", "pending")
+TAB_FILTERS = ("all", "todo", "done", "pending", "ready")
 
 
 class FocusableTabs(Tabs):
@@ -52,7 +52,7 @@ def truncate(message: str):
     return message
 
 
-def fmt_state(status, text: str = None):
+def fmt_state(status, text: str | None = None):
     return f"[{STATE_COLORS[status]}]{text or status}[/{STATE_COLORS[status]}]"
 
 
@@ -98,6 +98,12 @@ class TaskTable(DataTable):
                     filtered_tasks[task_id] = task
             elif self.filter_state == "pending":
                 if task.status in ("pending", "blocked", "in-progress"):
+                    filtered_tasks[task_id] = task
+            elif self.filter_state == "ready":
+                if (
+                    task.status == "pending"
+                    and self.tasks.get_task_state(task) != "blocked"
+                ):
                     filtered_tasks[task_id] = task
 
         for task_id, task in sorted(filtered_tasks.items()):
@@ -595,7 +601,9 @@ class DependentTodosApp(App):
             tree.id = "dep-tree"
             yield tree
         with Container(id="main-content"):
-            yield FocusableTabs("All", "Todo", "Done", "Pending", id="filter-tabs")
+            yield FocusableTabs(
+                "All", "Todo", "Done", "Pending", "Ready", id="filter-tabs"
+            )
             yield TaskTable(
                 self.tasks,
                 filter_state=self.current_filter,

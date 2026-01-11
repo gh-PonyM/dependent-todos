@@ -127,7 +127,7 @@ async def test_navigation_and_focus(temp_dir):
         app.tasks = TaskList(
             root={
                 "task1": create_sample_task("task1", "Task 1"),
-                "task2": create_sample_task("task2", "Task 2"),
+                "task2": create_sample_task("task2", "Task 2", dependencies=["task1"]),
                 "task3": create_sample_task(
                     "task3",
                     "Task 3",
@@ -178,6 +178,14 @@ async def test_navigation_and_focus(temp_dir):
         assert tabs.active_tab.label.plain == "Pending"
         assert app_instance.current_filter == "pending"
         assert table.row_count == 2  # task1 and task2 are pending/blocked/in-progress
+
+        # Press Tab again
+        await pilot.press("tab")
+        assert tabs.active_tab.label.plain == "Ready"
+        assert app_instance.current_filter == "ready"
+        assert (
+            table.row_count == 1
+        )  # task1 is ready (pending and not blocked), task2 is blocked
 
         # Press Tab again to wrap around
         await pilot.press("tab")
