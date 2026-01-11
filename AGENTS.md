@@ -63,6 +63,6 @@ This repository contains a command-line and textual user interface (TUI) tool fo
 
 ## Development Insights
 - **TUI Dependency Selection Consistency**: When implementing dependency selection in the TUI, ensure consistency with CLI behavior by excluding done tasks from selection lists. This prevents users from creating dependencies on completed tasks, which would be illogical.
-- **Label Consistency**: Use consistent terminology across the application. For example, use "Dependencies" and "Blocks" in TUI modals to match the TaskDetails display, rather than "Depends on" and "Depending on".
+- **Label Consistency**: Use consistent terminology across the application. For example, use "Depends on" and "Depending on" in TUI modals as preferred labeling convention.
 - **Incremental Testing**: When fixing UI issues, update tests and snapshots incrementally to maintain test coverage and catch regressions early.</content>
 <parameter name="filePath">AGENTS.md

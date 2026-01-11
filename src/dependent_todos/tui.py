@@ -394,11 +394,11 @@ class UpdateTaskModal(BaseModalScreen):
             return
         yield Static(f"Task ID: {self.task_id}", classes="task-id")
         yield TextArea(task.message, classes="task-message")
-        yield Static("Dependencies:", classes="depends-on-label")
+        yield Static("Depends on:", classes="depends-on-label")
         yield SelectionList[str](
             *self._get_dependency_options(), classes="depends-on-list", id="depends-on"
         )
-        yield Static("Blocks:", classes="depending-on-label")
+        yield Static("Depending on:", classes="depending-on-label")
         yield Static(self._get_depending_on_text(), classes="depending-on-list")
 
     def on_mount(self) -> None:
