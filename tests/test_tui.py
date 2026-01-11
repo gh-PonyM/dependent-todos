@@ -581,8 +581,8 @@ async def test_modal_select_fields_population(temp_dir):
         await pilot.press("a")
         assert isinstance(pilot.app.screen, AddTaskModal)
         selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
-        # Should have 3 options (all tasks, including done)
-        assert len(selection_list._options) == 3
+        # Should have 2 options (exclude done task2)
+        assert len(selection_list._options) == 2
         await pilot.press("escape")
 
         # Test UpdateTaskModal options for task3
@@ -590,8 +590,8 @@ async def test_modal_select_fields_population(temp_dir):
         await pilot.press("e")
         assert isinstance(pilot.app.screen, UpdateTaskModal)
         selection_list = pilot.app.screen.query_one("#depends-on", SelectionList)
-        # Should have 2 options (exclude self task3)
-        assert len(selection_list._options) == 2
+        # Should have 1 option (exclude self task3 and done task2)
+        assert len(selection_list._options) == 1
         # task1 should be selected
         assert "task1" in selection_list.selected
         await pilot.press("escape")

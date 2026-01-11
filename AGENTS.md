@@ -59,5 +59,10 @@ This repository contains a command-line and textual user interface (TUI) tool fo
 - TOML for human-readable storage
 - Pydantic for data validation
 - Topological sorting for dependency resolution
-- Interactive fuzzy search for usability</content>
+- Interactive fuzzy search for usability
+
+## Development Insights
+- **TUI Dependency Selection Consistency**: When implementing dependency selection in the TUI, ensure consistency with CLI behavior by excluding done tasks from selection lists. This prevents users from creating dependencies on completed tasks, which would be illogical.
+- **Label Consistency**: Use consistent terminology across the application. For example, use "Dependencies" and "Blocks" in TUI modals to match the TaskDetails display, rather than "Depends on" and "Depending on".
+- **Incremental Testing**: When fixing UI issues, update tests and snapshots incrementally to maintain test coverage and catch regressions early.</content>
 <parameter name="filePath">AGENTS.md

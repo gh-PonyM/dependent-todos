@@ -363,6 +363,8 @@ class UpdateTaskModal(BaseModalScreen):
         for task_id, task in app.tasks.items():
             if task_id == self.task_id:  # Exclude self
                 continue
+            if task.status == "done":  # Exclude done tasks
+                continue
             display_text = f"{task_id}: {task.message} [{task.status}]"
             # Pre-select current dependencies
             selected = task_id in app.tasks[self.task_id].dependencies
@@ -392,11 +394,11 @@ class UpdateTaskModal(BaseModalScreen):
             return
         yield Static(f"Task ID: {self.task_id}", classes="task-id")
         yield TextArea(task.message, classes="task-message")
-        yield Static("Depends on:", classes="depends-on-label")
+        yield Static("Dependencies:", classes="depends-on-label")
         yield SelectionList[str](
             *self._get_dependency_options(), classes="depends-on-list", id="depends-on"
         )
-        yield Static("Depending on:", classes="depending-on-label")
+        yield Static("Blocks:", classes="depending-on-label")
         yield Static(self._get_depending_on_text(), classes="depending-on-list")
 
     def on_mount(self) -> None:
@@ -474,6 +476,8 @@ class AddTaskModal(BaseModalScreen):
         app = cast(DependentTodosApp, self.app)
         options = []
         for task_id, task in app.tasks.items():
+            if task.status == "done":  # Exclude done tasks
+                continue
             display_text = f"{task_id}: {task.message} [{task.status}]"
             options.append(Selection(display_text, task_id))
         return options
