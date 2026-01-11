@@ -9,7 +9,6 @@ import tomli_w
 from .models import Task, TaskList
 
 
-# TODO: replace with class method on TaskList model called from_file
 def load_tasks_from_file(file_path: Path) -> TaskList:
     """Load tasks from a TOML file.
 
@@ -19,32 +18,7 @@ def load_tasks_from_file(file_path: Path) -> TaskList:
     Returns:
         TaskList of tasks
     """
-    if not file_path.exists():
-        return TaskList()
-
-    # TODO: stupid exception wrapping here, can just return the exception that is actually thrown
-    try:
-        with open(file_path, "rb") as f:
-            data = tomllib.load(f)
-    except Exception as e:
-        raise RuntimeError(f"Failed to load tasks from {file_path}: {e}")
-
-    tasks = {}
-    tasks_data = data.get("tasks", {})
-
-    for task_id, task_dict in tasks_data.items():
-        # Convert string timestamps back to datetime objects (empty strings become None)
-        task_dict["created"] = _parse_datetime(task_dict.get("created", ""))
-        task_dict["started"] = _parse_datetime(task_dict.get("started", ""))
-        task_dict["completed"] = _parse_datetime(task_dict.get("completed", ""))
-
-        try:
-            task = Task(**task_dict)
-            tasks[task_id] = task
-        except Exception as e:
-            raise RuntimeError(f"Failed to parse task '{task_id}': {e}")
-
-    return TaskList(tasks)
+    return TaskList.load_from_file(file_path)
 
 
 def save_tasks_to_file(tasklist: TaskList, file_path: Path) -> None:
@@ -54,61 +28,7 @@ def save_tasks_to_file(tasklist: TaskList, file_path: Path) -> None:
         tasklist: TaskList of tasks to save
         file_path: Path to save the TOML file
     """
-    # Ensure parent directory exists
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Convert tasks to TOML-compatible format
-    tasks_data = {}
-    for task_id, task in tasklist.items():
-        task_dict = task.model_dump()
-
-        # Convert datetime objects to ISO strings, None to empty string
-        # TODO: this a really bad implementation. A serializer for pydantic must be used that converts datetime into isoformat
-        if task_dict["created"]:
-            task_dict["created"] = task_dict["created"].isoformat()
-        else:
-            task_dict["created"] = ""
-        if task_dict["started"]:
-            task_dict["started"] = task_dict["started"].isoformat()
-        else:
-            task_dict["started"] = ""
-        if task_dict["completed"]:
-            task_dict["completed"] = task_dict["completed"].isoformat()
-        else:
-            task_dict["completed"] = ""
-
-        tasks_data[task_id] = task_dict
-
-    data = {"tasks": tasks_data}
-
-    # TODO Put the dump logic on the pydantic model
-    try:
-        with open(file_path, "wb") as f:
-            tomli_w.dump(data, f)
-    except Exception as e:
-        raise RuntimeError(f"Failed to save tasks to {file_path}: {e}")
+    tasklist.save_to_file(file_path)
 
 
-# TODO: remove this, pydantic handles this
-def _parse_datetime(dt_str: str) -> Any:
-    """Parse an ISO datetime string to a datetime object.
 
-    Args:
-        dt_str: ISO datetime string
-
-    Returns:
-        datetime object or None if empty
-    """
-    if not dt_str or dt_str == "":
-        return None
-
-    from datetime import datetime
-
-    try:
-        return datetime.fromisoformat(dt_str)
-    except ValueError:
-        # Try parsing without microseconds if it fails
-        try:
-            return datetime.fromisoformat(dt_str.split(".")[0])
-        except ValueError:
-            raise ValueError(f"Invalid datetime format: {dt_str}")

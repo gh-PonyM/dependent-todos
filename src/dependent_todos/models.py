@@ -1,8 +1,12 @@
 """Data models for the dependent todos application."""
 
+import tomllib
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 from graphlib import TopologicalSorter
+
+import tomli_w
 
 from pydantic import BaseModel, Field
 
@@ -146,6 +150,73 @@ class TaskList(dict[str, Task]):
             result += self.get_dependency_tree(dep_id, new_prefix, is_last_dep)
 
         return result
+
+    @classmethod
+    def load_from_file(cls, file_path: Path) -> "TaskList":
+        """Load tasks from a TOML file.
+
+        Args:
+            file_path: Path to the TOML file
+
+        Returns:
+            TaskList of tasks
+        """
+        if not file_path.exists():
+            return cls()
+
+        try:
+            with open(file_path, "rb") as f:
+                data = tomllib.load(f)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load tasks from {file_path}: {e}")
+
+        tasks = {}
+        tasks_data = data.get("tasks", {})
+
+        for task_id, task_dict in tasks_data.items():
+            # Convert empty strings to None for datetime fields
+            if task_dict.get("started") == "":
+                task_dict["started"] = None
+            if task_dict.get("completed") == "":
+                task_dict["completed"] = None
+
+            try:
+                task = Task(**task_dict)
+                tasks[task_id] = task
+            except Exception as e:
+                raise RuntimeError(f"Failed to parse task '{task_id}': {e}")
+
+        return cls(tasks)
+
+    def save_to_file(self, file_path: Path) -> None:
+        """Save tasks to a TOML file.
+
+        Args:
+            file_path: Path to save the TOML file
+        """
+        # Ensure parent directory exists
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Convert tasks to TOML-compatible format
+        tasks_data = {}
+        for task_id, task in self.items():
+            task_dict = task.model_dump(mode="json")
+
+            # Convert None to empty string for TOML compatibility
+            if task_dict["started"] is None:
+                task_dict["started"] = ""
+            if task_dict["completed"] is None:
+                task_dict["completed"] = ""
+
+            tasks_data[task_id] = task_dict
+
+        data = {"tasks": tasks_data}
+
+        try:
+            with open(file_path, "wb") as f:
+                tomli_w.dump(data, f)
+        except Exception as e:
+            raise RuntimeError(f"Failed to save tasks to {file_path}: {e}")
 
     def get_task_state(self, task: Task) -> StatusT:
         """Compute the runtime state from stored fields and dependencies.
