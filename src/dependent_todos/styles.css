@@ -82,6 +82,7 @@ DeleteTaskModal {
 Sidebar {
   display: none;
   dock: left;
+  max-width: 90;
   width: 50%;
   min-width: 50;
   height: 100%;
