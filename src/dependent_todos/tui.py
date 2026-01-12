@@ -1,5 +1,6 @@
 """Textual TUI interface for dependent todos."""
 
+import argparse
 from datetime import datetime
 from textual.app import App, ComposeResult
 from typing import cast, Literal
@@ -23,7 +24,7 @@ from textual.screen import ModalScreen
 from textual import events, on
 
 from dependent_todos.config import get_config_path
-from dependent_todos.constants import STATE_COLORS
+from dependent_todos.constants import STATE_COLORS, TODOS_CONFIG_NAME
 
 from dependent_todos.models import Task, TaskList
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
@@ -581,9 +582,9 @@ class DependentTodosApp(App):
     # TODO: Do the same for the other ids of the main widgets used and use the class variables inside the functions
     SIDEBAR_WIDGET_ID = "sidebar"
 
-    def __init__(self):
+    def __init__(self, config_path: str | None = None):
         super().__init__()
-        self.config_path = get_config_path()
+        self.config_path = get_config_path(config_path)
         self.tasks = cast(TaskList, load_tasks_from_file(self.config_path))
         self.current_task_id = None
         self.current_filter = "all"
@@ -795,7 +796,15 @@ class DependentTodosApp(App):
 
 def run():
     """Run the Textual TUI application."""
-    app = DependentTodosApp()
+    parser = argparse.ArgumentParser(description="Run the Dependent Todos TUI")
+    parser.add_argument(
+        "--config",
+        type=str,
+        help="Path to configuration file (default: %(default)s)",
+        default=TODOS_CONFIG_NAME,
+    )
+    args = parser.parse_args()
+    app = DependentTodosApp(config_path=args.config)
     app.run()
 
 

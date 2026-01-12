@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from dependent_todos.constants import TODOS_CONFIG_ENV_KEY, TODOS_CONFIG_NAME
+
 
 def get_config_path(config_override: str | None = None) -> Path:
     """Get the path to the todos configuration file.
@@ -22,12 +24,12 @@ def get_config_path(config_override: str | None = None) -> Path:
         return Path(config_override).expanduser().resolve()
 
     # Check environment variable
-    env_config = os.environ.get("TODOS_CONFIG")
+    env_config = os.environ.get(TODOS_CONFIG_ENV_KEY)
     if env_config:
         return Path(env_config).expanduser().resolve()
 
     # Default local path
-    return Path.cwd() / "todos.toml"
+    return Path.cwd() / TODOS_CONFIG_NAME
 
 
 def ensure_config_directory(config_path: Path) -> None:
