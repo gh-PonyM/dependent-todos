@@ -19,7 +19,7 @@ Run the TUI:
 To use a global config not per repo:
 
     mkdir -p  ~/.config/todos
-    echo 'export TODOS_CONFIG=~/.config/todos' >> ~/.bashrc
+    echo 'export TODOS_CONFIG=~/.config/todos/todos.tml' >> ~/.bashrc
 
 ## Tests
 
