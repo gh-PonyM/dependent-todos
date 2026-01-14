@@ -67,6 +67,12 @@ def get_status_display(task: Task, tasks: TaskList) -> str:
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
 
+    BINDINGS = DataTable.BINDINGS + [
+        ("e", "update_task", "Update"),
+        ("d", "delete_task", "Delete"),
+        ("m", "mark_done", "Mark done"),
+    ]
+
     def __init__(self, tasks: TaskList, filter_state: str = "all", **kwargs):
         super().__init__(**kwargs)
         self.tasks = tasks
@@ -74,6 +80,15 @@ class TaskTable(DataTable):
         self.can_focus = True
         self.add_columns("ID", "Status", "Created", "Message")
         self._populate_table()
+
+    def action_update_task(self):
+        self.app.action_update_task()
+
+    def action_delete_task(self):
+        self.app_action_delete_task()
+
+    def action_mark_done(self):
+        self.app.action_mark_done()
 
     def _populate_table(self):
         """Populate the table with task data."""
@@ -567,13 +582,10 @@ class DependentTodosApp(App):
     """Main Textual application for dependent todos."""
 
     BINDINGS = [
-        ("a", "add_task", "Add task"),
+        ("a", "add_task", "Add"),
         ("r", "refresh", "Refresh"),
-        ("y", "ready_tasks", "Show ready"),
-        ("o", "show_order", "Show order"),
-        ("e", "update_task", "Update selected"),
-        ("d", "delete_task", "Delete selected"),
-        ("m", "mark_done", "Mark task done"),
+        ("y", "ready_tasks", "Ready"),
+        ("o", "show_order", "Ordered"),
         ("t", "toggle_tree", "Toggle tree"),
     ]
 
