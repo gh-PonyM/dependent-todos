@@ -155,7 +155,7 @@ async def test_navigation_and_focus(temp_dir):
 
         # Initially on "Doing" tab
         assert tabs.active_tab.label.plain == "Doing"
-        assert app_instance.current_filter == "doing"
+        assert app_instance.current_filter == "Doing"
         assert cast(TaskTable, table).row_count == 0  # No tasks in progress
 
         # hit tab once to focus the tabs from the table
@@ -163,40 +163,44 @@ async def test_navigation_and_focus(temp_dir):
 
         # Press Tab to next tab
         await pilot.press("tab")
+        assert tabs.active_tab.label.plain == "Pending"
+        assert app_instance.current_filter == "Pending"
+        assert table.row_count == 2  # task1 and task2 are pending
+
+        await pilot.press("tab")
         assert tabs.active_tab.label.plain == "Ready TODO"
-        assert app_instance.current_filter == "ready todo"
+        assert app_instance.current_filter == "Ready TODO"
         assert (
             table.row_count == 1
         )  # task1 is ready todo (pending, no started, not blocked)
 
-        await pilot.press("tab")
-        assert tabs.active_tab.label.plain == "Blocked"
-        assert app_instance.current_filter == "blocked"
-        assert table.row_count == 1  # task2 is blocked
-
-        # Press Tab again
-        await pilot.press("tab")
-        assert tabs.active_tab.label.plain == "Pending"
-        assert app_instance.current_filter == "pending"
-        assert table.row_count == 2  # task1 and task2 are pending
-
         # Press Tab again
         await pilot.press("tab")
         assert tabs.active_tab.label.plain == "Done"
-        assert app_instance.current_filter == "done"
+        assert app_instance.current_filter == "Done"
         assert table.row_count == 1  # task3 is done
+
+        # Press Tab again
+        await pilot.press("tab")
+        assert tabs.active_tab.label.plain == "Blocked"
+        assert app_instance.current_filter == "Blocked"
+        assert table.row_count == 1  # task2 is blocked
 
         # Press Tab again to wrap around
         await pilot.press("tab")
+        assert tabs.active_tab.label.plain == "Cancelled"
+        assert app_instance.current_filter == "Cancelled"
+        assert table.row_count == 0  # no cancelled tasks
+
+        # One more to wrap to Doing
+        await pilot.press("tab")
         assert tabs.active_tab.label.plain == "Doing"
-        assert app_instance.current_filter == "doing"
+        assert app_instance.current_filter == "Doing"
 
         # Switch to Pending tab for navigation test
-        await pilot.press("tab")  # Ready TODO
-        await pilot.press("tab")  # Blocked
         await pilot.press("tab")  # Pending
         assert tabs.active_tab.label.plain == "Pending"
-        assert app_instance.current_filter == "pending"
+        assert app_instance.current_filter == "Pending"
         assert table.row_count == 2
 
         # shift tab goes forth and back between the task table and the navigation

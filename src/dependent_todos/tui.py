@@ -106,6 +106,7 @@ class TaskTable(DataTable):
         ("e", "update_task", "Update"),
         ("d", "delete_task", "Delete"),
         ("m", "mark_done", "Mark done"),
+        ("c", "cancel_task", "Cancel"),
     ]
 
     def __init__(self, tasks: TaskList, filter_state: TabFilterType = "all", **kwargs):
@@ -124,6 +125,9 @@ class TaskTable(DataTable):
 
     def action_mark_done(self):
         self.app.action_mark_done()
+
+    def action_cancel_task(self):
+        self.app.action_cancel_task()
 
     def filtered_tasks(self, by: SortFieldsT, reverse: bool = True) -> dict[str, Task]:
         return {
@@ -619,12 +623,12 @@ class DependentTodosApp(App):
     SIDEBAR_WIDGET_ID = "sidebar"
 
     FILTER_EXPLANATIONS = {
-        "all": "All tasks",
-        "doing": "Tasks that have been started",
-        "ready todo": "Pending tasks without start date that are not blocked",
-        "blocked": "Tasks that are blocked by dependencies",
-        "pending": "All tasks with pending status",
-        "done": "Completed tasks",
+        "Doing": "Tasks that have been started",
+        "Pending": "All tasks with pending status",
+        "Ready TODO": "Pending tasks without start date that are not blocked",
+        "Done": "Completed tasks",
+        "Blocked": "Tasks that are blocked by dependencies",
+        "Cancelled": "Cancelled tasks",
     }
 
     def __init__(self, config_path: str | None = None):
@@ -749,6 +753,23 @@ class DependentTodosApp(App):
                 task.completed = datetime.now()
                 self._save_and_refresh()
                 self.notify(f"Task '{self.current_task_id}' marked as done")
+            else:
+                self.notify("Task not found")
+        else:
+            self.notify("No task selected")
+
+    def action_cancel_task(self) -> None:
+        """Cancel or uncancel the selected task."""
+        if self.current_task_id:
+            task = self.tasks.get(self.current_task_id)
+            if task:
+                if task.cancelled:
+                    task.cancelled = False
+                    self.notify(f"Task '{self.current_task_id}' uncancelled")
+                else:
+                    task.cancelled = True
+                    self.notify(f"Task '{self.current_task_id}' cancelled")
+                self._save_and_refresh()
             else:
                 self.notify("Task not found")
         else:

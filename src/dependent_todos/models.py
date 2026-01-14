@@ -40,6 +40,13 @@ class Task(BaseModel):
     def cancelled(self) -> bool:
         return self.status == "cancelled"
 
+    @cancelled.setter
+    def cancelled(self, value: bool) -> None:
+        if value:
+            self.status = "cancelled"
+        else:
+            self.status = "pending"
+
     @property
     def pending(self) -> bool:
         """Pending v.s. in-progress"""
@@ -53,6 +60,15 @@ class Task(BaseModel):
     @property
     def done(self) -> bool:
         return bool(self.completed) and not self.cancelled
+
+    @done.setter
+    def done(self, value: bool) -> None:
+        if value:
+            self.status = "done"
+            self.completed = datetime.now()
+        else:
+            self.status = "pending"
+            self.completed = None
 
 
 class TaskList(RootModel):
