@@ -40,6 +40,15 @@ class Task(BaseModel):
     def cancelled(self) -> bool:
         return self.status == "cancelled"
 
+    @property
+    def pending(self) -> bool:
+        """Pending v.s. in-progress"""
+        return not bool(self.started)
+
+    @property
+    def done(self) -> bool:
+        return bool(self.completed)
+
 
 class TaskList(RootModel):
     """Collection of tasks with dependency management methods."""

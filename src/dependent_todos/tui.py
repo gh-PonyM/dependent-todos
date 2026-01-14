@@ -89,39 +89,29 @@ class TaskTable(DataTable):
             if self.filter_state == "all":
                 filtered_tasks[task_id] = task
             elif self.filter_state == "doing":
-                if task.started is not None and task.status == "in-progress":
+                if not task.pending:
                     filtered_tasks[task_id] = task
             elif self.filter_state == "ready todo":
-                if (
-                    task.status == "pending"
-                    and task.started is None
-                    and self.tasks.get_task_state(task) != "blocked"
-                ):
+                if task.pending and self.tasks.get_task_state(task) != "blocked":
                     filtered_tasks[task_id] = task
             elif self.filter_state == "blocked":
-                if (
-                    self.tasks.get_task_state(task) == "blocked"
-                    and task.status != "done"
-                ):
+                if self.tasks.get_task_state(task) == "blocked" and not task.done:
                     filtered_tasks[task_id] = task
             elif self.filter_state == "pending":
-                if task.status == "pending":
+                if task.pending:
                     filtered_tasks[task_id] = task
-            elif self.filter_state == "done":
-                if task.status == "done":
-                    filtered_tasks[task_id] = task
+            elif self.filter_state == "done" and task.done:
+                filtered_tasks[task_id] = task
 
         for task_id, task in sorted(filtered_tasks.items()):
             combined_status = get_status_display(task, self.tasks)
 
-            # Format created date
-            created_str = task.created.strftime("%Y-%m-%d %H:%M")
-
-            # Truncate message if too long
-            message = task.message
-            message = truncate(message)
-
-            self.add_row(task_id, combined_status, created_str, message)
+            self.add_row(
+                task_id,
+                combined_status,
+                task.created.strftime("%Y-%m-%d %H:%M"),
+                truncate(task.message),
+            )
 
     def refresh_data(self, tasks: TaskList):
         """Refresh the table with new task data."""
