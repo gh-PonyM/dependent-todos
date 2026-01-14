@@ -29,7 +29,7 @@ from dependent_todos.constants import TODOS_CONFIG_NAME
 
 from dependent_todos.models import Task, TaskList, DynamicStatusT
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
-from dependent_todos.utils import generate_unique_id, truncate
+from dependent_todos.utils import generate_unique_id
 from typing import get_args
 
 TabFilterType = Literal[
@@ -153,7 +153,7 @@ class TaskTable(DataTable):
                 task_id,
                 combined_status,
                 task.created.strftime(self.DT_FMT),
-                truncate(task.message),
+                task.message,
             )
 
     def refresh_data(self, tasks: TaskList):
