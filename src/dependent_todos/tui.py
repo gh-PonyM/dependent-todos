@@ -84,6 +84,7 @@ class TaskTable(DataTable):
             return
 
         # Filter tasks
+        # TODO: started is missing
         filtered_tasks = {}
         for task_id, task in self.tasks.items():
             if self.filter_state == "all":
@@ -599,6 +600,7 @@ class DependentTodosApp(App):
             tree.id = "dep-tree"
             yield tree
         with Container(id="main-content"):
+            # TODO: adapt
             yield FocusableTabs(
                 "All", "Ready", "Todo", "Done", "Pending", id="filter-tabs"
             )
