@@ -72,7 +72,7 @@ class TaskTable(DataTable):
         self.tasks = tasks
         self.filter_state = filter_state
         self.can_focus = True
-        self.add_columns("ID", "Status", "Message")
+        self.add_columns("ID", "Status", "Created", "Message")
         self._populate_table()
 
     def _populate_table(self):
@@ -84,35 +84,44 @@ class TaskTable(DataTable):
             return
 
         # Filter tasks
-        # TODO: started is missing
         filtered_tasks = {}
         for task_id, task in self.tasks.items():
             if self.filter_state == "all":
                 filtered_tasks[task_id] = task
-            elif self.filter_state == "todo":
+            elif self.filter_state == "doing":
+                if task.started is not None and task.status == "in-progress":
+                    filtered_tasks[task_id] = task
+            elif self.filter_state == "ready todo":
+                if (
+                    task.status == "pending"
+                    and task.started is None
+                    and self.tasks.get_task_state(task) != "blocked"
+                ):
+                    filtered_tasks[task_id] = task
+            elif self.filter_state == "blocked":
+                if (
+                    self.tasks.get_task_state(task) == "blocked"
+                    and task.status != "done"
+                ):
+                    filtered_tasks[task_id] = task
+            elif self.filter_state == "pending":
                 if task.status == "pending":
                     filtered_tasks[task_id] = task
             elif self.filter_state == "done":
                 if task.status == "done":
                     filtered_tasks[task_id] = task
-            elif self.filter_state == "pending":
-                if task.status in ("pending", "blocked", "in-progress"):
-                    filtered_tasks[task_id] = task
-            elif self.filter_state == "ready":
-                if (
-                    task.status == "pending"
-                    and self.tasks.get_task_state(task) != "blocked"
-                ):
-                    filtered_tasks[task_id] = task
 
         for task_id, task in sorted(filtered_tasks.items()):
             combined_status = get_status_display(task, self.tasks)
+
+            # Format created date
+            created_str = task.created.strftime("%Y-%m-%d %H:%M")
 
             # Truncate message if too long
             message = task.message
             message = truncate(message)
 
-            self.add_row(task_id, combined_status, message)
+            self.add_row(task_id, combined_status, created_str, message)
 
     def refresh_data(self, tasks: TaskList):
         """Refresh the table with new task data."""
@@ -583,12 +592,21 @@ class DependentTodosApp(App):
     # TODO: Do the same for the other ids of the main widgets used and use the class variables inside the functions
     SIDEBAR_WIDGET_ID = "sidebar"
 
+    FILTER_EXPLANATIONS = {
+        "all": "All tasks",
+        "doing": "Tasks currently in progress (have started date and status in-progress)",
+        "ready todo": "Pending tasks without start date that are not blocked",
+        "blocked": "Tasks that are blocked by dependencies",
+        "pending": "All tasks with pending status",
+        "done": "Completed tasks",
+    }
+
     def __init__(self, config_path: str | None = None):
         super().__init__()
         self.config_path = get_config_path(config_path)
         self.tasks = cast(TaskList, load_tasks_from_file(self.config_path))
         self.current_task_id = None
-        self.current_filter = "all"
+        self.current_filter = "doing"
         self.footer = f"Config: {self.config_path}"
 
     def compose(self) -> ComposeResult:
@@ -600,9 +618,8 @@ class DependentTodosApp(App):
             tree.id = "dep-tree"
             yield tree
         with Container(id="main-content"):
-            # TODO: adapt
             yield FocusableTabs(
-                "All", "Ready", "Todo", "Done", "Pending", id="filter-tabs"
+                "Doing", "Ready TODO", "Blocked", "Pending", "Done", id="filter-tabs"
             )
             yield TaskTable(
                 self.tasks,
@@ -610,6 +627,7 @@ class DependentTodosApp(App):
                 id="task-table",
                 cursor_type="row",
             )
+            yield Static("", id="filter-info")
             yield TaskDetails(id="task-details")
 
         yield Footer()
@@ -789,6 +807,9 @@ class DependentTodosApp(App):
             table = self.task_table
             table.filter_state = self.current_filter
             table._populate_table()
+            # Update filter info bar
+            info_bar = self.query_one("#filter-info", Static)
+            info_bar.update(self.FILTER_EXPLANATIONS.get(self.current_filter, ""))
             # Clear tree if display to avoid showing stale dependencies
             sidebar = self.sidebar
             if sidebar.display:

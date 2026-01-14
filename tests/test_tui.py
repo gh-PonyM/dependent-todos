@@ -141,7 +141,7 @@ async def test_navigation_and_focus(temp_dir):
         # TODO: use the properties defined in app, e.g. app.task_table, etc.
         table = cast(TaskTable, pilot.app.task_table)
         table.refresh_data(app.tasks)
-        assert table.row_count == 3
+        assert table.row_count == 0  # No tasks in progress (doing filter)
         details_widget = cast(TaskDetails, pilot.app.task_details)
         details_widget.tasks = app.tasks
         details_widget.refresh()
@@ -153,26 +153,32 @@ async def test_navigation_and_focus(temp_dir):
         # Initially, the tasks table is focused
         assert pilot.app.focused == table
 
-        # Initially on "All" tab
-        assert tabs.active_tab.label.plain == "All"
-        assert app_instance.current_filter == "all"
-        assert cast(TaskTable, table).row_count == 3  # All tasks displayed
+        # Initially on "Doing" tab
+        assert tabs.active_tab.label.plain == "Doing"
+        assert app_instance.current_filter == "doing"
+        assert cast(TaskTable, table).row_count == 0  # No tasks in progress
 
         # hit tab once to focus the tabs from the table
         await pilot.press("tab")
 
         # Press Tab to next tab
         await pilot.press("tab")
-        assert tabs.active_tab.label.plain == "Ready"
-        assert app_instance.current_filter == "ready"
+        assert tabs.active_tab.label.plain == "Ready TODO"
+        assert app_instance.current_filter == "ready todo"
         assert (
             table.row_count == 1
-        )  # task1 is ready (pending and not blocked), task2 is blocked
+        )  # task1 is ready todo (pending, no started, not blocked)
 
         await pilot.press("tab")
-        assert tabs.active_tab.label.plain == "Todo"
-        assert app_instance.current_filter == "todo"
-        assert table.row_count == 2  # task1 and task2 are todo (pending state)
+        assert tabs.active_tab.label.plain == "Blocked"
+        assert app_instance.current_filter == "blocked"
+        assert table.row_count == 1  # task2 is blocked
+
+        # Press Tab again
+        await pilot.press("tab")
+        assert tabs.active_tab.label.plain == "Pending"
+        assert app_instance.current_filter == "pending"
+        assert table.row_count == 2  # task1 and task2 are pending
 
         # Press Tab again
         await pilot.press("tab")
@@ -180,16 +186,18 @@ async def test_navigation_and_focus(temp_dir):
         assert app_instance.current_filter == "done"
         assert table.row_count == 1  # task3 is done
 
-        # Press Tab again
-        await pilot.press("tab")
-        assert tabs.active_tab.label.plain == "Pending"
-        assert app_instance.current_filter == "pending"
-        assert table.row_count == 2  # task1 and task2 are pending/blocked/in-progress
-
         # Press Tab again to wrap around
         await pilot.press("tab")
-        assert tabs.active_tab.label.plain == "All"
-        assert app_instance.current_filter == "all"
+        assert tabs.active_tab.label.plain == "Doing"
+        assert app_instance.current_filter == "doing"
+
+        # Switch to Pending tab for navigation test
+        await pilot.press("tab")  # Ready TODO
+        await pilot.press("tab")  # Blocked
+        await pilot.press("tab")  # Pending
+        assert tabs.active_tab.label.plain == "Pending"
+        assert app_instance.current_filter == "pending"
+        assert table.row_count == 2
 
         # shift tab goes forth and back between the task table and the navigation
         await pilot.press("shift+tab")
@@ -253,7 +261,7 @@ async def test_navigation_and_focus(temp_dir):
             if cast(TaskTable, table).get_row(row_key)[0] == "task1"
         )
         task1_row = cast(TaskTable, table).get_row(task1_row_key)
-        assert task1_row[2] == "Updated Task 1"
+        assert task1_row[3] == "Updated Task 1"
 
 
 @pytest.mark.asyncio
