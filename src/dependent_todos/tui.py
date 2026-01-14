@@ -596,7 +596,7 @@ class DependentTodosApp(App):
 
     FILTER_EXPLANATIONS = {
         "all": "All tasks",
-        "doing": "Tasks currently in progress (have started date and status in-progress)",
+        "doing": "Tasks that have been started",
         "ready todo": "Pending tasks without start date that are not blocked",
         "blocked": "Tasks that are blocked by dependencies",
         "pending": "All tasks with pending status",
@@ -631,7 +631,7 @@ class DependentTodosApp(App):
             )
             yield Static("", id="filter-info")
             yield TaskDetails(id="task-details")
-
+            yield Static(self.footer, id="info-bar")
         yield Footer()
 
     def on_mount(self) -> None:

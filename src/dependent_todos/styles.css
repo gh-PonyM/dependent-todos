@@ -108,3 +108,13 @@ Sidebar {
   background: $panel;
   padding: 1;
 }
+
+#task-details {
+  border-bottom: hkey $accent 10%;
+}
+
+#info-bar {
+  height: 1;
+  color: white 50%;
+  padding-left: 1;
+}
