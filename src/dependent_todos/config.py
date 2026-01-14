@@ -20,16 +20,16 @@ def get_config_path(config_override: str | None = None) -> Path:
     Returns:
         Path to the configuration file
     """
-    if config_override:
-        return Path(config_override).expanduser().resolve()
-
     # Check environment variable
     env_config = os.environ.get(TODOS_CONFIG_ENV_KEY)
-    if env_config:
-        return Path(env_config).expanduser().resolve()
-
-    # Default local path
-    return Path.cwd() / TODOS_CONFIG_NAME
+    p = TODOS_CONFIG_NAME
+    if config_override:
+        p = config_override
+        if config_override == TODOS_CONFIG_NAME and env_config:
+            p = env_config
+    elif env_config:
+        p = env_config
+    return Path(p).expanduser().resolve()
 
 
 def ensure_config_directory(config_path: Path) -> None:
