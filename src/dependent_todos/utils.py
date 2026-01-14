@@ -3,6 +3,11 @@
 import re
 
 from dependent_todos.constants import TASK_ID_MAX_LEN
+from dependent_todos.constants import (
+    MAX_MESSAGE_DISPLAY_LENGTH,
+    MESSAGE_TRUNCATE_LENGTH,
+    TRUNCATION_SUFFIX,
+)
 
 
 def slugify(text: str, max_length: int = 50) -> str:
@@ -128,3 +133,9 @@ def generate_unique_id(
         if candidate not in existing_ids:
             return candidate
         counter += 1
+
+
+def truncate(message: str):
+    if len(message) > MAX_MESSAGE_DISPLAY_LENGTH:
+        message = message[:MESSAGE_TRUNCATE_LENGTH] + TRUNCATION_SUFFIX
+    return message

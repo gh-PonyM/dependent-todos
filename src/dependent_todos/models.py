@@ -43,11 +43,16 @@ class Task(BaseModel):
     @property
     def pending(self) -> bool:
         """Pending v.s. in-progress"""
-        return not bool(self.started)
+        return not self.done and not self.cancelled
+
+    @property
+    def doing(self) -> bool:
+        """Pending v.s. in-progress"""
+        return all((bool(self.started), not self.done, not self.cancelled))
 
     @property
     def done(self) -> bool:
-        return bool(self.completed)
+        return bool(self.completed) and not self.cancelled
 
 
 class TaskList(RootModel):

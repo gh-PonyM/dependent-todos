@@ -4,10 +4,7 @@ TODOS_CONFIG_ENV_KEY = "TODOS_CONFIG"
 TODOS_CONFIG_NAME = "./todos.toml"
 
 # Color mapping for task states
-STATE_COLORS = {
-    "pending": "yellow",
-    "in-progress": "blue",
-    "done": "green",
-    "blocked": "red",
-    "cancelled": "dim red",
-}
+
+MAX_MESSAGE_DISPLAY_LENGTH = 50
+TRUNCATION_SUFFIX = "..."
+MESSAGE_TRUNCATE_LENGTH = MAX_MESSAGE_DISPLAY_LENGTH - len(TRUNCATION_SUFFIX)

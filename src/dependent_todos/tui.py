@@ -3,7 +3,8 @@
 import argparse
 from datetime import datetime
 from textual.app import App, ComposeResult
-from typing import cast, Literal
+from typing import cast, Literal, Any
+from collections.abc import Callable
 
 from textual.binding import Binding
 from textual.containers import Container, Grid
@@ -24,16 +25,25 @@ from textual.screen import ModalScreen
 from textual import events, on
 
 from dependent_todos.config import get_config_path
-from dependent_todos.constants import STATE_COLORS, TODOS_CONFIG_NAME
+from dependent_todos.constants import TODOS_CONFIG_NAME
 
-from dependent_todos.models import Task, TaskList
+from dependent_todos.models import Task, TaskList, DynamicStatusT
 from dependent_todos.storage import load_tasks_from_file, save_tasks_to_file
-from dependent_todos.utils import generate_unique_id
+from dependent_todos.utils import generate_unique_id, truncate
+from typing import get_args
 
-# UI Constants
-MAX_MESSAGE_DISPLAY_LENGTH = 50
-TRUNCATION_SUFFIX = "..."
-MESSAGE_TRUNCATE_LENGTH = MAX_MESSAGE_DISPLAY_LENGTH - len(TRUNCATION_SUFFIX)
+TabFilterType = Literal[
+    "Doing", "Pending", "Ready TODO", "Done", "Blocked", "Cancelled"
+]
+TabFilters = get_args(TabFilterType)
+SortFieldsT = Literal["created", "started", "completed", "status", "id"]
+STATE_COLORS: dict[DynamicStatusT, str] = {
+    "pending": "yellow",
+    "in-progress": "blue",
+    "done": "green",
+    "blocked": "red",
+    "cancelled": "dim red",
+}
 
 
 class FocusableTabs(Tabs):
@@ -43,11 +53,25 @@ class FocusableTabs(Tabs):
         Binding("tab", "next_tab", "Next tab", show=False),
     ]
 
+    def __init__(self, *tabs, **kwargs):
+        super().__init__(*TabFilters, **kwargs)
 
-def truncate(message: str):
-    if len(message) > MAX_MESSAGE_DISPLAY_LENGTH:
-        message = message[:MESSAGE_TRUNCATE_LENGTH] + TRUNCATION_SUFFIX
-    return message
+    @staticmethod
+    def filtered_tasks(tasks: TaskList, filter_state: TabFilterType):
+        """This is a nice and type safe way to not use case or if else statements and python
+        can also compile it more efficiently since the code paths are better defined"""
+        fn_nmap: dict[TabFilterType, Callable[[Task], bool]] = {
+            "Pending": lambda t: t.pending,
+            "Doing": lambda t: t.doing,
+            "Ready TODO": lambda t: t.pending
+            and tasks.get_task_state(task) != "blocked",
+            "Blocked": lambda t: not t.done and tasks.get_task_state(t) == "blocked",
+            "Done": lambda t: t.done,
+            "Cancelled": lambda t: t.cancelled,
+        }
+        for task_id, task in tasks.items():
+            if fn_nmap[filter_state](task):
+                yield task
 
 
 def fmt_state(status, text: str | None = None):
@@ -64,8 +88,19 @@ def get_status_display(task: Task, tasks: TaskList) -> str:
     )
 
 
+def _sort_func(by: SortFieldsT = "created") -> Callable[[Task], Any]:
+    """Returns a sort function for sorted"""
+
+    def sort(task: Task) -> Any:
+        return getattr(task, by, 0)
+
+    return sort
+
+
 class TaskTable(DataTable):
     """Data table for displaying tasks."""
+
+    DT_FMT = "%Y-%m-%d %H:%M"
 
     BINDINGS = DataTable.BINDINGS + [
         ("e", "update_task", "Update"),
@@ -73,10 +108,10 @@ class TaskTable(DataTable):
         ("m", "mark_done", "Mark done"),
     ]
 
-    def __init__(self, tasks: TaskList, filter_state: str = "all", **kwargs):
+    def __init__(self, tasks: TaskList, filter_state: TabFilterType = "all", **kwargs):
         super().__init__(**kwargs)
         self.tasks = tasks
-        self.filter_state = filter_state
+        self.filter_state: TabFilterType = filter_state
         self.can_focus = True
         self.add_columns("ID", "Status", "Created", "Message")
         self._populate_table()
@@ -85,10 +120,20 @@ class TaskTable(DataTable):
         self.app.action_update_task()
 
     def action_delete_task(self):
-        self.app_action_delete_task()
+        self.app.action_delete_task()
 
     def action_mark_done(self):
         self.app.action_mark_done()
+
+    def filtered_tasks(self, by: SortFieldsT, reverse: bool = True) -> dict[str, Task]:
+        return {
+            t.id: t
+            for t in sorted(
+                FocusableTabs.filtered_tasks(self.tasks, self.filter_state),
+                reverse=reverse,
+                key=_sort_func(by=by),
+            )
+        }
 
     def _populate_table(self):
         """Populate the table with task data."""
@@ -97,34 +142,13 @@ class TaskTable(DataTable):
 
         if not self.tasks:
             return
-
-        # Filter tasks
-        filtered_tasks = {}
-        for task_id, task in self.tasks.items():
-            if self.filter_state == "all":
-                filtered_tasks[task_id] = task
-            elif self.filter_state == "doing":
-                if not task.pending:
-                    filtered_tasks[task_id] = task
-            elif self.filter_state == "ready todo":
-                if task.pending and self.tasks.get_task_state(task) != "blocked":
-                    filtered_tasks[task_id] = task
-            elif self.filter_state == "blocked":
-                if self.tasks.get_task_state(task) == "blocked" and not task.done:
-                    filtered_tasks[task_id] = task
-            elif self.filter_state == "pending":
-                if task.pending:
-                    filtered_tasks[task_id] = task
-            elif self.filter_state == "done" and task.done:
-                filtered_tasks[task_id] = task
-
-        for task_id, task in sorted(filtered_tasks.items()):
+        for task_id, task in self.filtered_tasks(by="created").items():
             combined_status = get_status_display(task, self.tasks)
 
             self.add_row(
                 task_id,
                 combined_status,
-                task.created.strftime("%Y-%m-%d %H:%M"),
+                task.created.strftime(self.DT_FMT),
                 truncate(task.message),
             )
 
@@ -608,7 +632,7 @@ class DependentTodosApp(App):
         self.config_path = get_config_path(config_path)
         self.tasks = cast(TaskList, load_tasks_from_file(self.config_path))
         self.current_task_id = None
-        self.current_filter = "doing"
+        self.current_filter: TabFilterType = "Doing"
         self.footer = f"Config: {self.config_path}"
 
     def compose(self) -> ComposeResult:
@@ -620,9 +644,7 @@ class DependentTodosApp(App):
             tree.id = "dep-tree"
             yield tree
         with Container(id="main-content"):
-            yield FocusableTabs(
-                "Doing", "Ready TODO", "Blocked", "Pending", "Done", id="filter-tabs"
-            )
+            yield FocusableTabs(id="filter-tabs")
             yield TaskTable(
                 self.tasks,
                 filter_state=self.current_filter,
@@ -805,7 +827,7 @@ class DependentTodosApp(App):
         """Update the current filter and table based on active tab."""
         tabs = self.filter_tabs
         if tabs.active_tab is not None:
-            self.current_filter = str(tabs.active_tab.label.plain).lower()
+            self.current_filter: TabFilterType = tabs.active_tab.label.plain
             table = self.task_table
             table.filter_state = self.current_filter
             table._populate_table()
